@@ -1,5 +1,6 @@
 import React from "react";
-import { Box, Divider, Stack, Typography } from "@mui/material";
+import { Box, Divider, Stack, Typography, IconButton } from "@mui/material";
+import { X } from "phosphor-react";
 
 const list = [
     {
@@ -14,14 +15,18 @@ const list = [
         id: 3,
         identity: 'User 3',
     },
+    {
+        id: 4,
+        identity: 'User 4',
+    },
 ];
 
-const Participants = () => {
+const Participants = ({ onClose }) => {
     return (
         <Box sx={{
             p: 0,
             width: 320,
-            height: '100vh',
+            height: '98vh',
             display: 'flex',
             flexDirection: 'column',
             border: '2px solid black',
@@ -30,6 +35,7 @@ const Participants = () => {
             left: 0,
             zIndex: 10,
             backgroundColor: 'white',
+            m: '30px 0',
         }}>
             <Box sx={{
                 p: 1,
@@ -38,10 +44,20 @@ const Participants = () => {
                 rowGap: 0,
                 width: '100%',
             }}>
-                <Typography variant="h6" align="left">Participants -</Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h6" align="left">Participants -</Typography>
+                    <IconButton 
+                        onClick={onClose}
+                        sx={{ position: 'absolute', top: 8, right: 8 }}
+                    >
+                        <X color="black" />
+                    </IconButton>
+                </Box>
                 <Stack>
                     {list.map(({ id, identity }) => (
-                        <Stack key={id} spacing={1}>
+                        <Stack key={id} spacing={1} sx={{
+                            p: 1,
+                        }} >
                             <Box sx={{
                                 px: 2,
                                 py: 2,

@@ -6,7 +6,7 @@ const Label = () => {
     <Box sx={{
       position: 'absolute',
       bottom: 0,
-      left: 0,
+      right: 0,
       p: 3,
       color: 'black',
       backgroundColor: 'white',

@@ -2,12 +2,18 @@ import React, { useState } from "react";
 import { Box, IconButton, Stack } from "@mui/material";
 import { Microphone, MicrophoneSlash, VideoCamera, VideoCameraSlash, Chat, Monitor, MonitorPlay, Users, Info, PhoneDisconnect } from "phosphor-react";
 import Participants from "./participants";
+import Label from "./label";
+import Chats from "./chat";
+import { useNavigate } from "react-router-dom";
 
 const Video = () => {
+  const navigate = useNavigate();
   const [isMicrophoneOn, setIsMicrophoneOn] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isScreenOn, setIsScreenOn] = useState(true);
   const [isParticipantsVisible, setIsParticipantsVisible] = useState(false);
+  const [isLabelVisible, setIsLabelVisible] = useState(false);
+  const [isChatsVisible, setIsChatsVisible] = useState(false);
 
   const handleMicrophoneToggle = () => {
     setIsMicrophoneOn(!isMicrophoneOn);
@@ -23,11 +29,41 @@ const Video = () => {
 
   const handleParticipantsToggle = () => {
     setIsParticipantsVisible(!isParticipantsVisible);
+    if (!isParticipantsVisible) {
+      setIsChatsVisible(false);
+    }
+  };
+
+  const handleChatsToggle = () => {
+    setIsChatsVisible(!isChatsVisible);
+    if (!isChatsVisible) {
+      setIsParticipantsVisible(false);
+    }
+  };
+
+  const handleLabelToggle = () => {
+    setIsLabelVisible(!isLabelVisible);
+  };
+
+  const handleDisconnect = () => {
+    navigate('/');
   };
 
   return (
     <Box sx={{ position: 'relative', width: '100%', height: '100vh', backgroundColor: 'white' }}>
-      {isParticipantsVisible && <Participants />}
+      {isParticipantsVisible && (
+        <Participants
+          onClose={handleParticipantsToggle}
+          sx={{ zIndex: isChatsVisible ? 9 : 10 }}
+        />
+      )}
+      {isChatsVisible && (
+        <Chats
+          onClose={handleChatsToggle}
+          sx={{ zIndex: isParticipantsVisible ? 9 : 10 }}
+        />
+      )}
+      {isLabelVisible && <Label />}
       <Box sx={{
         position: 'absolute',
         bottom: '0%',
@@ -79,13 +115,22 @@ const Video = () => {
             >
               <Users color="black" />
             </IconButton>
-            <IconButton sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}>
+            <IconButton 
+              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+              onClick={handleChatsToggle}
+            >
               <Chat color="black" />
             </IconButton>
-            <IconButton sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}>
+            <IconButton 
+              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+              onClick={handleLabelToggle}
+            >
               <Info color="black" />
             </IconButton>
-            <IconButton sx={{ backgroundColor: 'red', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(255, 0, 0, 0.86)' } }}>
+            <IconButton 
+              sx={{ backgroundColor: 'red', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(255, 0, 0, 0.86)' } }}
+              onClick={handleDisconnect}
+            >
               <PhoneDisconnect color="white" />
             </IconButton>
           </Stack>

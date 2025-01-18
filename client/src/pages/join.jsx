@@ -1,7 +1,30 @@
 import React from "react";
 import { Box, Button, Card, Container, Stack, Typography, TextField, Checkbox } from '@mui/material';
+import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from 'react';
+
 
 const Join = () => {
+  const {RoomIDvalue, setRoomIDvalue} = useState('');
+  const {Namevalue, setNamevalue} = useState('');
+  const search = useLocation().search;
+
+  useEffect(() => {
+    const isRoomHost = new URLSearchParams(search).get('host');
+
+    //set in Redux store that user is a Host
+    
+  },[]);
+
+  const navigate = useNavigate();
+  const cancel = () => {
+    navigate('/');
+  };
+  
+  const joinRoom = () => {
+    navigate('/room');
+  };
+
   return (
     <Container>
       <Box sx={{
@@ -29,6 +52,8 @@ const Join = () => {
               fullWidth 
               placeholder="Enter Name" 
               variant="outlined" 
+              value={Namevalue}
+              onChange={(e) => setNamevalue(e.target.value)}
               InputProps={{
                 style: { color: 'white', borderColor: 'white' },
               }}
@@ -60,6 +85,8 @@ const Join = () => {
               fullWidth 
               placeholder="Enter Meeting ID" 
               variant="outlined" 
+              value={RoomIDvalue}
+              onChange={(e) => setRoomIDvalue(e.target.value)}
               InputProps={{
                 style: { color: 'white', borderColor: 'white' },
               }}
@@ -91,10 +118,10 @@ const Join = () => {
               <Typography variant="subtitle2" sx={{ color: 'white' }}>Audio only</Typography>
             </Stack>
             <Stack direction='row' alignItems='center' spacing={2}>
-              <Button fullWidth variant="contained" sx={{ backgroundColor: 'white', color: 'black' }}>
+              <Button onClick={joinRoom} fullWidth variant="contained" sx={{ backgroundColor: 'white', color: 'black' }}>
                 Host Meeting
               </Button>
-              <Button fullWidth variant="outlined" sx={{ color: 'white', borderColor: 'white' }}>
+              <Button onClick={cancel} fullWidth variant="outlined" sx={{ color: 'white', borderColor: 'white' }}>
                 Cancel
               </Button>
             </Stack>
