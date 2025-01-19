@@ -1,28 +1,62 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Box, Button, Card, Container, Stack, Typography, TextField, Checkbox } from '@mui/material';
 import { useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from 'react';
-
+import { useDispatch } from 'react-redux';
+import { SetConnectionOnlyWithAudio, SetIdentity, SetRoomID, UpdateIsRoomHost } from "../redux/slices/app";
+import { getRoomeExists } from "../sections/utils/api";
 
 const Join = () => {
-  const {RoomIDvalue, setRoomIDvalue} = useState('');
-  const {Namevalue, setNamevalue} = useState('');
+  const [RoomIDvalue, setRoomIDvalue] = useState('');
+  const [Namevalue, setNamevalue] = useState('');
+  const [isRoomHost, setIsRoomHost] = useState(false);
+  const [connectionOnlyWithAudio] = useState(false);
   const search = useLocation().search;
+  const dispatch = useDispatch();
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    const isRoomHost = new URLSearchParams(search).get('host');
-
-    //set in Redux store that user is a Host
-    
-  },[]);
+    const isHost = new URLSearchParams(search).get('host') === 'true';
+    setIsRoomHost(isHost);
+    //setting in Redux store that user is a Host
+    dispatch(UpdateIsRoomHost(isHost));
+  }, [search, dispatch]);
 
   const navigate = useNavigate();
+  const handleJoinRoom = async () => {
+    //dispatch name to redux store 
+    dispatch(SetIdentity(Namevalue));
+    if (isRoomHost) {
+      createRoom();
+    }
+    else {
+      joinRoom();
+    }
+  };
+
+  const createRoom = () => {
+    navigate('/room');
+  };
+
+  const joinRoom = async () => {
+    const response = await getRoomeExists(RoomIDvalue);
+    const { roomExists, full } = response;
+    if (roomExists) {
+      if (full) {
+        setErrorMessage('Meeting is full, please try again.');
+      }
+      else {
+        //dispatch name and roomid to redux store 
+        dispatch(SetRoomID(RoomIDvalue));
+        navigate('/room');
+      }
+    }
+    else {
+      setErrorMessage('Meeting not Found. Check Meeting ID');
+    }
+  };
+
   const cancel = () => {
     navigate('/');
-  };
-  
-  const joinRoom = () => {
-    navigate('/room');
   };
 
   return (
@@ -45,13 +79,13 @@ const Join = () => {
         }}>
           <Stack spacing={3} width={'100%'}>
             <Typography textAlign={'center'} variant="h3" fontSize={40} sx={{ color: 'white' }}>
-              Host Meeting
+              {isRoomHost ? 'Host Meeting' : 'Join Meeting'}
             </Typography>
-            <TextField 
-              size="small" 
-              fullWidth 
-              placeholder="Enter Name" 
-              variant="outlined" 
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="Enter Name"
+              variant="outlined"
               value={Namevalue}
               onChange={(e) => setNamevalue(e.target.value)}
               InputProps={{
@@ -80,46 +114,54 @@ const Join = () => {
                 },
               }}
             />
-            <TextField 
-              size="small" 
-              fullWidth 
-              placeholder="Enter Meeting ID" 
-              variant="outlined" 
-              value={RoomIDvalue}
-              onChange={(e) => setRoomIDvalue(e.target.value)}
-              InputProps={{
-                style: { color: 'white', borderColor: 'white' },
-              }}
-              InputLabelProps={{
-                style: { color: 'white' },
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': {
-                    borderColor: 'white',
+            {!isRoomHost && (
+              <TextField
+                size="small"
+                fullWidth
+                placeholder="Enter Meeting ID"
+                variant="outlined"
+                value={RoomIDvalue}
+                onChange={(e) => setRoomIDvalue(e.target.value)}
+                InputProps={{
+                  style: { color: 'white', borderColor: 'white' },
+                }}
+                InputLabelProps={{
+                  style: { color: 'white' },
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': {
+                      borderColor: 'white',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: 'white',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: 'white',
+                    },
                   },
-                  '&:hover fieldset': {
-                    borderColor: 'white',
+                  '& .MuiInputBase-input': {
+                    color: 'white',
                   },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'white',
+                  '& .MuiInputLabel-root': {
+                    color: 'white',
                   },
-                },
-                '& .MuiInputBase-input': {
-                  color: 'white',
-                },
-                '& .MuiInputLabel-root': {
-                  color: 'white',
-                },
-              }}
-            />
+                }}
+              />
+            )}
+
             <Stack direction="row" alignItems="center" spacing={0.5} width='100%'>
-              <Checkbox sx={{ color: 'white' }} />
+              <Checkbox value={connectionOnlyWithAudio} onChange={(e) => {
+                dispatch(SetConnectionOnlyWithAudio(e.target.checked));
+              }} sx={{ color: 'white' }} />
               <Typography variant="subtitle2" sx={{ color: 'white' }}>Audio only</Typography>
             </Stack>
+            {errorMessage &&
+              <Typography variant="subtitle2" sx={{ color: 'red' }}>{errorMessage}</Typography>
+            }
             <Stack direction='row' alignItems='center' spacing={2}>
-              <Button onClick={joinRoom} fullWidth variant="contained" sx={{ backgroundColor: 'white', color: 'black' }}>
-                Host Meeting
+              <Button onClick={handleJoinRoom} fullWidth variant="contained" sx={{ backgroundColor: 'white', color: 'black' }}>
+                {isRoomHost ? 'Host Now' : 'Join Now'}
               </Button>
               <Button onClick={cancel} fullWidth variant="outlined" sx={{ color: 'white', borderColor: 'white' }}>
                 Cancel
