@@ -1,25 +1,26 @@
+import React from "react";
 import { Box, Typography } from "@mui/material";
 
 const Label = ({ roomId }) => {
   return (
-    <Box sx={{
-      position: 'absolute',
-      bottom: 0,
-      right: 0,
-      p: 3,
-      color: 'black',
-      backgroundColor: 'white',
-      borderRadius: 2,
-      border: '2px solid black',
-    }}>
-      <Typography variant="subtitle1" align="justify">
-        Your Meeting Ready!
+    <Box
+      sx={{
+        position: "absolute",
+        bottom: 20,
+        right: 20,
+        backgroundColor: "white",
+        border: "2px solid black",
+        borderRadius: "8px",
+        padding: "10px 20px",
+        textAlign: "center",
+      }}
+    >
+      <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+        Your Meeting Room
       </Typography>
-      <Typography variant="subtitle1" align="justify">
-        ID: {roomId}
-      </Typography>
+      <Typography variant="subtitle1">Room ID: {roomId || "Generating..."}</Typography>
     </Box>
   );
-}
+};
 
 export default Label;

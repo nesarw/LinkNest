@@ -27,6 +27,3 @@ export const joinRoom = (roomId,identity) => {
     };
     socket.emit("join-room",data);
 };
-
-
-
