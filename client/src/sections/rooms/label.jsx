@@ -1,7 +1,6 @@
 import { Box, Typography } from "@mui/material";
 
-const Label = () => {
-  const roomId = "123-456-789";
+const Label = ({ roomId }) => {
   return (
     <Box sx={{
       position: 'absolute',
@@ -13,13 +12,12 @@ const Label = () => {
       borderRadius: 2,
       border: '2px solid black',
     }}>
-        <Typography variant="subtitle1" align="justify">
+      <Typography variant="subtitle1" align="justify">
         Your Meeting Ready!
       </Typography>
       <Typography variant="subtitle1" align="justify">
         ID: {roomId}
       </Typography>
-      
     </Box>
   );
 }

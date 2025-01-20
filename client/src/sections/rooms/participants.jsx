@@ -2,26 +2,7 @@ import React from "react";
 import { Box, Divider, Stack, Typography, IconButton } from "@mui/material";
 import { X } from "phosphor-react";
 
-const list = [
-    {
-        id: 1,
-        identity: 'User 1',
-    },
-    {
-        id: 2,
-        identity: 'User 2',
-    },
-    {
-        id: 3,
-        identity: 'User 3',
-    },
-    {
-        id: 4,
-        identity: 'User 4',
-    },
-];
-
-const Participants = ({ onClose }) => {
+const Participants = ({ participants, onClose }) => {
     return (
         <Box sx={{
             p: 0,
@@ -54,8 +35,8 @@ const Participants = ({ onClose }) => {
                     </IconButton>
                 </Box>
                 <Stack>
-                    {list.map(({ id, identity }) => (
-                        <Stack key={id} spacing={1} sx={{
+                    {participants.map(({ socketID, identity }) => (
+                        <Stack key={socketID} spacing={1} sx={{
                             p: 1,
                         }} >
                             <Box sx={{
