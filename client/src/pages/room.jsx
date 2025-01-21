@@ -21,7 +21,7 @@ const Room = () => {
       <Video />
       {/* Group Chat Section */}
       {/* ID Label */}
-      {/* <Label /> */}
+      <Label roomId={roomId} />
       {showOverlay && <Overlay/>}
     </Stack>
   );

@@ -15,7 +15,7 @@ export const localPreviewInitConnection = async (isRoomHost, identity, roomId=nu
         store.dispatch(setShowOverlay(false));
         localstream = stream;
         showlocalVideoPreview(localstream);
-        isRoomHost ? wss.createNewRoom(identity) : wss.joinRoom({roomID,identity }); 
+        isRoomHost ? wss.createNewRoom(identity) : wss.joinRoom(roomId, identity); 
 
     }).catch((err) => {
         console.log("error occured when trying to get an access to local stream");

@@ -1,4 +1,6 @@
 import io from 'socket.io-client';
+import { store } from '../../redux/store';
+import { updateRoomID } from '../../redux/slices/app';
 
 const server = 'http://localhost:8000';
 let socket = null;
@@ -8,6 +10,10 @@ export const connectwithSocketIOServer = () => {
     socket.on('connect', () => {
         console.log('Connected to socket server');
         console.log(socket.id);
+    });
+    socket.on('room-created', (data) => {
+        const { roomID } = data;
+        store.dispatch(updateRoomID(roomID));
     });
 };
 

@@ -42,7 +42,7 @@ const io = require('socket.io')(server, {
 io.on('connection', (socket) => {
     console.log(`A user connected ${socket.id}`);
 
-    socket.on('create-new-room', () => {
+    socket.on('create-new-room', (data) => {
         const roomID = generateRoomID();
         socket.join(roomID);
         console.log(`Room created with ID: ${roomID}`);
