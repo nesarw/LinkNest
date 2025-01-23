@@ -5,6 +5,8 @@ import Participants from "./participants";
 import Label from "./label";
 import Chats from "./chat";
 import { useNavigate } from "react-router-dom";
+import * as wss from "../utils/wss";
+import * as webRTCHandler from "../utils/webRTCHandler";
 
 const Video = () => {
   const navigate = useNavigate();
@@ -46,6 +48,8 @@ const Video = () => {
   };
 
   const handleDisconnect = () => {
+    webRTCHandler.stopLocalStream();
+    wss.leaveRoom();
     navigate('/');
   };
 

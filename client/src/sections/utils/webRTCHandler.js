@@ -23,6 +23,12 @@ export const localPreviewInitConnection = async (isRoomHost, identity, roomId=nu
     });
 };
 
+export const stopLocalStream = () => {
+    if (localstream) {
+        localstream.getTracks().forEach(track => track.stop());
+    }
+};
+
 const showlocalVideoPreview = (stream) => {
     //show local video preview 
 };

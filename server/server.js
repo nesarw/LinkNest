@@ -46,22 +46,24 @@ io.on('connection', (socket) => {
         const roomID = generateRoomID();
         socket.join(roomID);
         console.log(`Room created with ID: ${roomID}`);
-        rooms.push({ roomID, participants: [socket.id], host: socket.id });
-        connectedUsers.push({ socketID: socket.id, roomID });
+        rooms.push({ roomID, participants: [{ socketID: socket.id, identity: data.identity }], host: socket.id });
+        connectedUsers.push({ socketID: socket.id, roomID, identity: data.identity });
+        console.log('Connected Users:', connectedUsers);
         socket.emit('room-created', { roomID });
         io.to(roomID).emit('update-participants', rooms.find(room => room.roomID === roomID).participants);
     });
 
-    socket.on('join-room', (roomID) => {
-        const room = rooms.find(room => room.roomID === roomID);
+    socket.on('join-room', (data) => {
+        const room = rooms.find(room => room.roomID === data.roomId);
         if (room) {
             if (room.participants.length < 4) {
-                socket.join(roomID);
-                room.participants.push(socket.id);
-                connectedUsers.push({ socketID: socket.id, roomID });
-                console.log(`User ${socket.id} joined room ${roomID}`);
-                socket.to(roomID).emit('user-joined', { userID: socket.id });
-                io.to(roomID).emit('update-participants', room.participants);
+                socket.join(data.roomId);
+                room.participants.push({ socketID: socket.id, identity: data.identity });
+                connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity: data.identity });
+                console.log(`User ${socket.id} joined room ${data.roomId} with identity ${data.identity}`);
+                console.log('Connected Users:', connectedUsers);
+                socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity: data.identity });
+                io.to(data.roomId).emit('update-participants', room.participants);
             } else {
                 socket.emit('error', { message: 'Room is full' });
             }
@@ -76,9 +78,10 @@ io.on('connection', (socket) => {
         if (user) {
             const roomID = user.roomID;
             connectedUsers = connectedUsers.filter(user => user.socketID !== socket.id);
+            console.log('Remaining Connected Users:', connectedUsers);
             const room = rooms.find(room => room.roomID === roomID);
             if (room) {
-                room.participants = room.participants.filter(participant => participant !== socket.id);
+                room.participants = room.participants.filter(participant => participant.socketID !== socket.id);
                 if (room.host === socket.id) {
                     // If the host leaves, remove the room and notify all participants
                     rooms = rooms.filter(room => room.roomID !== roomID);
