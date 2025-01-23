@@ -1,33 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { Box, Divider, Stack, Typography, IconButton } from "@mui/material";
 import { X } from "phosphor-react";
-import * as wss from "../utils/wss";
+import axios from "axios";
 
 const Participants = ({ onClose }) => {
     const [participants, setParticipants] = useState([]);
 
     useEffect(() => {
-        const handleUpdateParticipants = (participants) => {
-            setParticipants(participants);
+        const fetchParticipants = async () => {
+            try {
+                const response = await axios.get('http://localhost:8000/api/participants');
+                setParticipants(response.data.participants);
+            } catch (error) {
+                console.error("Error fetching participants:", error);
+            }
         };
 
-        wss.socket.on('update-participants', handleUpdateParticipants);
+        const intervalId = setInterval(fetchParticipants, 1);
 
-        return () => {
-            wss.socket.off('update-participants', handleUpdateParticipants);
-        };
-    }, []);
-
-    useEffect(() => {
-        const handleUserJoined = ({ userID, identity }) => {
-            setParticipants(prevParticipants => [...prevParticipants, { socketID: userID, identity }]);
-        };
-
-        wss.socket.on('user-joined', handleUserJoined);
-
-        return () => {
-            wss.socket.off('user-joined', handleUserJoined);
-        };
+        return () => clearInterval(intervalId);
     }, []);
 
     return (

@@ -42,6 +42,14 @@ app.get('/api/rooms-exists/:roomID', (req, res) => {
     }
 });
 
+app.get('/api/participants', (req, res) => {
+    const participants = connectedUsers.map(user => ({
+        socketID: user.socketID,
+        identity: user.identity
+    }));
+    res.status(200).json({ participants });
+});
+
 const io = require('socket.io')(server, {
     cors: {
         origin: '*',
