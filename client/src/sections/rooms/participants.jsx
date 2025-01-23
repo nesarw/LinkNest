@@ -1,8 +1,35 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Divider, Stack, Typography, IconButton } from "@mui/material";
 import { X } from "phosphor-react";
+import * as wss from "../utils/wss";
 
-const Participants = ({ participants, onClose }) => {
+const Participants = ({ onClose }) => {
+    const [participants, setParticipants] = useState([]);
+
+    useEffect(() => {
+        const handleUpdateParticipants = (participants) => {
+            setParticipants(participants);
+        };
+
+        wss.socket.on('update-participants', handleUpdateParticipants);
+
+        return () => {
+            wss.socket.off('update-participants', handleUpdateParticipants);
+        };
+    }, []);
+
+    useEffect(() => {
+        const handleUserJoined = ({ userID, identity }) => {
+            setParticipants(prevParticipants => [...prevParticipants, { socketID: userID, identity }]);
+        };
+
+        wss.socket.on('user-joined', handleUserJoined);
+
+        return () => {
+            wss.socket.off('user-joined', handleUserJoined);
+        };
+    }, []);
+
     return (
         <Box sx={{
             p: 0,

@@ -1,9 +1,10 @@
 import io from 'socket.io-client';
 import { store } from '../../redux/store';
 import { updateRoomID } from '../../redux/slices/app';
+import { useNavigate } from 'react-router-dom';
 
 const server = 'http://localhost:8000';
-let socket = null;
+export let socket = null;
 
 export const connectwithSocketIOServer = () => {
     socket = io(server);
@@ -14,6 +15,9 @@ export const connectwithSocketIOServer = () => {
     socket.on('room-created', (data) => {
         const { roomID } = data;
         store.dispatch(updateRoomID(roomID));
+    });
+    socket.on('room-closed', () => {
+        navigate('/');
     });
 };
 
@@ -43,6 +47,5 @@ export const disconnectFromRoom = () => {
 export const leaveRoom = () => {
     if (socket) {
         socket.emit('leave-room');
-        socket.disconnect();
     }
 };

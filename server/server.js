@@ -85,17 +85,23 @@ io.on('connection', (socket) => {
     socket.on('join-room', (data) => {
         const room = rooms.find(room => room.roomID === data.roomId);
         if (room) {
-            if (room.participants.length < 4) {
+            const existingUser = room.participants.find(participant => participant.identity === data.identity);
+            if (existingUser) {
+                existingUser.socketID = socket.id;
+                socket.join(data.roomId);
+                connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity: data.identity });
+                console.log(`User ${socket.id} rejoined room ${data.roomId} with identity ${data.identity}`);
+            } else if (room.participants.length < 4) {
                 socket.join(data.roomId);
                 room.participants.push({ socketID: socket.id, identity: data.identity });
                 connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity: data.identity });
                 console.log(`User ${socket.id} joined room ${data.roomId} with identity ${data.identity}`);
-                console.log('Connected Users:', connectedUsers);
-                socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity: data.identity });
-                io.to(data.roomId).emit('update-participants', room.participants);
             } else {
                 socket.emit('error', { message: 'Room is full' });
             }
+            console.log('Connected Users:', connectedUsers);
+            socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity: data.identity });
+            io.to(data.roomId).emit('update-participants', room.participants);
         } else {
             socket.emit('error', { message: 'Room not found' });
         }

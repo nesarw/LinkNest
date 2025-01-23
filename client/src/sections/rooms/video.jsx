@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Box, IconButton, Stack } from "@mui/material";
 import { Microphone, MicrophoneSlash, VideoCamera, VideoCameraSlash, Chat, Monitor, MonitorPlay, Users, Info, PhoneDisconnect } from "phosphor-react";
 import Participants from "./participants";
@@ -16,6 +16,18 @@ const Video = () => {
   const [isParticipantsVisible, setIsParticipantsVisible] = useState(false);
   const [isLabelVisible, setIsLabelVisible] = useState(false);
   const [isChatsVisible, setIsChatsVisible] = useState(false);
+
+  useEffect(() => {
+    const handleRoomClosed = () => {
+      navigate('/');
+    };
+
+    wss.socket.on('room-closed', handleRoomClosed);
+
+    return () => {
+      wss.socket.off('room-closed', handleRoomClosed);
+    };
+  }, [navigate]);
 
   const handleMicrophoneToggle = () => {
     setIsMicrophoneOn(!isMicrophoneOn);
