@@ -8,11 +8,14 @@ export let socket = null;
 
 const peerConnections = {};
 let isInitiator = false;
+const connectedPeers = new Set();
 
 const createPeerConnection = (userID) => {
-    // If we already have a connection for this user, don't create a new one
+    // If we already have a connection for this user, clean it up first
     if (peerConnections[userID]) {
-        return peerConnections[userID];
+        peerConnections[userID].close();
+        delete peerConnections[userID];
+        removeRemoteStream(userID);
     }
 
     const peerConnection = new RTCPeerConnection({
@@ -34,9 +37,12 @@ const createPeerConnection = (userID) => {
         });
     }
 
-    // Handle incoming tracks
+    // Handle incoming tracks only if we haven't processed this peer before
     peerConnection.ontrack = (event) => {
-        handleRemoteStream(event.streams[0], userID);
+        if (!connectedPeers.has(userID)) {
+            handleRemoteStream(event.streams[0], userID);
+            connectedPeers.add(userID);
+        }
     };
 
     // Handle ICE candidates
@@ -76,8 +82,8 @@ export const connectwithSocketIOServer = () => {
         console.log('User joined:', data);
         const { userID, identity } = data;
         
-        // Only create offer if we're already in the room (initiator)
-        if (isInitiator) {
+        // Only create offer if we're already in the room (initiator) and haven't connected to this peer
+        if (isInitiator && !connectedPeers.has(userID)) {
             const peerConnection = createPeerConnection(userID);
             try {
                 const offer = await peerConnection.createOffer();
@@ -92,16 +98,17 @@ export const connectwithSocketIOServer = () => {
     socket.on('offer', async (data) => {
         const { offer, from } = data;
         
-        // Create peer connection if we don't have one yet
-        const peerConnection = createPeerConnection(from);
-        
-        try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            socket.emit('answer', { target: from, answer });
-        } catch (err) {
-            console.error('Error handling offer:', err);
+        // Only accept offer if we haven't connected to this peer
+        if (!connectedPeers.has(from)) {
+            const peerConnection = createPeerConnection(from);
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('answer', { target: from, answer });
+            } catch (err) {
+                console.error('Error handling offer:', err);
+            }
         }
     });
 
@@ -109,7 +116,7 @@ export const connectwithSocketIOServer = () => {
         const { answer, from } = data;
         try {
             const peerConnection = peerConnections[from];
-            if (peerConnection) {
+            if (peerConnection && peerConnection.signalingState !== 'stable') {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
             }
         } catch (err) {
@@ -121,7 +128,7 @@ export const connectwithSocketIOServer = () => {
         const { candidate, from } = data;
         try {
             const peerConnection = peerConnections[from];
-            if (peerConnection) {
+            if (peerConnection && peerConnection.remoteDescription) {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
             }
         } catch (err) {
@@ -133,6 +140,7 @@ export const connectwithSocketIOServer = () => {
         if (peerConnections[userID]) {
             peerConnections[userID].close();
             delete peerConnections[userID];
+            connectedPeers.delete(userID);
             removeRemoteStream(userID);
         }
     });
@@ -147,6 +155,13 @@ export const createNewRoom = (identity) => {
 };
 
 export const joinRoom = (roomId, identity) => {
+    // Clear any existing connections when joining a new room
+    connectedPeers.clear();
+    Object.values(peerConnections).forEach(connection => {
+        connection.close();
+    });
+    Object.keys(peerConnections).forEach(key => delete peerConnections[key]);
+    
     socket.emit("join-room", { roomId, identity });
 };
 
@@ -154,6 +169,8 @@ export const disconnectFromRoom = () => {
     Object.values(peerConnections).forEach(connection => {
         connection.close();
     });
+    Object.keys(peerConnections).forEach(key => delete peerConnections[key]);
+    connectedPeers.clear();
     if (socket) {
         socket.disconnect();
     }
@@ -165,5 +182,7 @@ export const leaveRoom = () => {
         Object.values(peerConnections).forEach(connection => {
             connection.close();
         });
+        Object.keys(peerConnections).forEach(key => delete peerConnections[key]);
+        connectedPeers.clear();
     }
 };
