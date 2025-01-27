@@ -3,9 +3,33 @@ import { store } from '../../redux/store';
 import { updateRoomID } from '../../redux/slices/app';
 import { handleRemoteStream, removeRemoteStream } from './webRTCHandler';
 
-const server = 'http://localhost:8000';
-export let socket = null;
+// Determine server URL based on environment
+const getServerUrl = () => {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    const port = process.env.NODE_ENV === 'production' ? window.location.port : '8000';
+    
+    // For ngrok URLs
+    if (hostname.includes('ngrok')) {
+        return `${protocol}//${hostname}`;
+    }
+    
+    // For local development
+    return process.env.NODE_ENV === 'production' 
+        ? `${protocol}//${hostname}${port ? `:${port}` : ''}`
+        : `http://localhost:${port}`;
+};
 
+const socketOptions = {
+    transports: ['websocket'],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    secure: window.location.protocol === 'https:',
+    rejectUnauthorized: false
+};
+
+export let socket = null;
 const peerConnections = {};
 let isInitiator = false;
 const connectedPeers = new Set();
@@ -66,10 +90,21 @@ const createPeerConnection = (userID) => {
 };
 
 export const connectwithSocketIOServer = () => {
-    socket = io(server);
+    const serverUrl = getServerUrl();
+    socket = io(serverUrl, socketOptions);
     
     socket.on('connect', () => {
         console.log('Connected to socket server:', socket.id);
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        // Try to reconnect with polling if websocket fails
+        if (socketOptions.transports[0] === 'websocket') {
+            socketOptions.transports = ['polling', 'websocket'];
+            socket.disconnect();
+            socket = io(serverUrl, socketOptions);
+        }
     });
 
     socket.on('room-created', (data) => {

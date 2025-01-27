@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const path = require('path');
 const twilio = require('twilio');
 
 const PORT = process.env.PORT || 8000;
@@ -8,7 +9,10 @@ const PORT = process.env.PORT || 8000;
 const app = express();
 const server = http.createServer(app);
 
+// Middleware
 app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '../client/dist')));
 
 let connectedUsers = [];
 let rooms = [];
@@ -28,6 +32,7 @@ const generateUniqueRoomID = () => {
     return roomID;
 };
 
+// API Routes
 app.get('/api/rooms-exists/:roomID', (req, res) => {
     const roomID = req.params.roomID;
     const room = rooms.find(room => room.roomID === roomID);
@@ -50,6 +55,12 @@ app.get('/api/participants', (req, res) => {
     res.status(200).json({ participants });
 });
 
+// Serve React app for all other routes
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+});
+
+// Socket.IO setup
 const io = require('socket.io')(server, {
     cors: {
         origin: '*',
@@ -85,25 +96,6 @@ io.on('connection', (socket) => {
     socket.on('ice-candidate', (data) => {
         const { target, candidate } = data;
         socket.to(target).emit('ice-candidate', { candidate, from: socket.id });
-    });
-
-    socket.on('regenerate-room-id', () => {
-        const user = connectedUsers.find(user => user.socketID === socket.id);
-        if (user) {
-            const oldRoomID = user.roomID;
-            const room = rooms.find(room => room.roomID === oldRoomID);
-            if (room && room.host === socket.id) {
-                const newRoomID = generateUniqueRoomID();
-                room.roomID = newRoomID;
-                user.roomID = newRoomID;
-                socket.leave(oldRoomID);
-                socket.join(newRoomID);
-                previousRoomIDs.add(newRoomID);
-                console.log(`Room ID regenerated from ${oldRoomID} to ${newRoomID}`);
-                io.to(oldRoomID).emit('room-id-regenerated', { newRoomID });
-                io.to(newRoomID).emit('update-participants', room.participants);
-            }
-        }
     });
 
     socket.on('join-room', (data) => {
@@ -148,7 +140,6 @@ io.on('connection', (socket) => {
             if (room) {
                 room.participants = room.participants.filter(participant => participant.socketID !== socket.id);
                 if (room.host === socket.id) {
-                    // If the host leaves, assign a new host
                     if (room.participants.length > 0) {
                         room.host = room.participants[0].socketID;
                         io.to(roomID).emit('new-host', { newHostID: room.host });
@@ -176,13 +167,13 @@ io.on('connection', (socket) => {
                     }
                 }
                 io.to(roomID).emit('update-participants', room.participants);
-                // Notify other participants about disconnection
                 socket.to(roomID).emit('user-disconnected', socket.id);
             }
         }
     });
 });
 
+// Start server
 server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
