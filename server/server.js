@@ -71,6 +71,22 @@ io.on('connection', (socket) => {
         io.to(roomID).emit('update-participants', rooms.find(room => room.roomID === roomID).participants);
     });
 
+    // Handle WebRTC signaling
+    socket.on('offer', (data) => {
+        const { target, offer } = data;
+        socket.to(target).emit('offer', { offer, from: socket.id });
+    });
+
+    socket.on('answer', (data) => {
+        const { target, answer } = data;
+        socket.to(target).emit('answer', { answer, from: socket.id });
+    });
+
+    socket.on('ice-candidate', (data) => {
+        const { target, candidate } = data;
+        socket.to(target).emit('ice-candidate', { candidate, from: socket.id });
+    });
+
     socket.on('regenerate-room-id', () => {
         const user = connectedUsers.find(user => user.socketID === socket.id);
         if (user) {
@@ -104,11 +120,18 @@ io.on('connection', (socket) => {
                 room.participants.push({ socketID: socket.id, identity: data.identity });
                 connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity: data.identity });
                 console.log(`User ${socket.id} joined room ${data.roomId} with identity ${data.identity}`);
+                
+                // Notify existing participants about the new user
+                socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity: data.identity });
+                
+                // If there are existing participants, notify the new user
+                if (room.participants.length > 1) {
+                    socket.emit('existing-participants', room.participants.filter(p => p.socketID !== socket.id));
+                }
             } else {
                 socket.emit('error', { message: 'Room is full' });
             }
             console.log('Connected Users:', connectedUsers);
-            socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity: data.identity });
             io.to(data.roomId).emit('update-participants', room.participants);
         } else {
             socket.emit('error', { message: 'Room not found' });
@@ -147,13 +170,14 @@ io.on('connection', (socket) => {
             if (room) {
                 room.participants = room.participants.filter(participant => participant.socketID !== socket.id);
                 if (room.host === socket.id) {
-                    // If the host leaves, assign a new host
                     if (room.participants.length > 0) {
                         room.host = room.participants[0].socketID;
                         io.to(roomID).emit('new-host', { newHostID: room.host });
                     }
                 }
                 io.to(roomID).emit('update-participants', room.participants);
+                // Notify other participants about disconnection
+                socket.to(roomID).emit('user-disconnected', socket.id);
             }
         }
     });
