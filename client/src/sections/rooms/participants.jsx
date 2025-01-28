@@ -34,7 +34,8 @@ const Participants = ({ onClose }) => {
             left: 0,
             zIndex: 10,
             backgroundColor: 'white',
-            m: '30px 0',
+            m: '8px 0',
+            borderRadius: '20px',
         }}>
             <Box sx={{
                 p: 1,

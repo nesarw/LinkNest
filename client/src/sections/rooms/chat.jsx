@@ -16,8 +16,9 @@ const Chat = ({ onClose, sx }) => {
             left: 0,
             zIndex: 10,
             backgroundColor: 'white',
-            m: '30px 0',
-            ...sx,
+            m: '8px 0',
+            borderRadius: '20px',
+            // ...sx,
         }}>
             <Box sx={{
                 p: 1,

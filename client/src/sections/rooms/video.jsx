@@ -66,93 +66,95 @@ const Video = () => {
   };
 
   return (
-    <Box sx={{ position: 'relative', width: '100%', height: '100vh', backgroundColor: 'white' }}>
-      {isParticipantsVisible && (
-        <Participants
-          onClose={handleParticipantsToggle}
-          sx={{ zIndex: isChatsVisible ? 9 : 10 }}
-        />
-      )}
-      {isChatsVisible && (
-        <Chats
-          onClose={handleChatsToggle}
-          sx={{ zIndex: isParticipantsVisible ? 9 : 10 }}
-        />
-      )}
-      {isLabelVisible && <Label />}
+    <>
+      {/* Floating Panels */}
+      <Box sx={{ 
+        position: 'fixed',
+        top: '0px',
+        left: '16px',
+        zIndex: 1200
+      }}>
+        {isParticipantsVisible && (
+          <Participants
+            onClose={handleParticipantsToggle}
+            sx={{ 
+              position: 'relative',
+              top: 'auto',
+              left: 'auto',
+              m: 0,
+              mb: isChatsVisible ? 2 : 0
+            }}
+          />
+        )}
+        {isChatsVisible && (
+          <Chats
+            onClose={handleChatsToggle}
+            sx={{ 
+              position: 'relative',
+              top: 'auto',
+              left: 'auto',
+              m: 0
+            }}
+          />
+        )}
+      </Box>
+
+      {/* Controls */}
       <Box sx={{
-        position: 'absolute',
-        bottom: '0%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        height: 100,
-        width: 700,
+        p: 2,
+        borderRadius: '40px',
         backgroundColor: 'black',
-        borderRadius: 80, 
-        border: '2px solid black',
+        boxShadow: '0 2px 2px rgba(0,0,0,0.15)',
       }}>
-        <Box sx={{
-          width: '90%',
-          height: 100,
-          backgroundColor: 'black',
-          borderRadius: 80,
-          border: '2px solid black',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: 1,
-        }}>
-          <Stack direction='row' spacing={2} alignItems='center' justifyContent='center'>
-            <IconButton 
-              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
-              onClick={handleMicrophoneToggle}
-            >
-              {isMicrophoneOn ? <Microphone color="black" /> : <MicrophoneSlash color="black" />}
-            </IconButton>
-            <IconButton 
-              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
-              onClick={handleCameraToggle}
-            >
-              {isCameraOn ? <VideoCamera color="black" /> : <VideoCameraSlash color="black" />}
-            </IconButton>
-            <IconButton 
-              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
-              onClick={handleScreenToggle}
-            >
-              {isScreenOn ? <Monitor color="black" /> : <MonitorPlay color="black" />}
-            </IconButton>
-            <IconButton 
-              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
-              onClick={handleParticipantsToggle}
-            >
-              <Users color="black" />
-            </IconButton>
-            <IconButton 
-              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
-              onClick={handleChatsToggle}
-            >
-              <Chat color="black" />
-            </IconButton>
-            <IconButton 
-              sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
-              onClick={handleLabelToggle}
-            >
-              <Info color="black" />
-            </IconButton>
-            <IconButton 
-              sx={{ backgroundColor: 'red', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(255, 0, 0, 0.86)' } }}
-              onClick={handleDisconnect}
-            >
-              <PhoneDisconnect color="white" />
-            </IconButton>
-          </Stack>
-        </Box>
+        <Stack direction='row' spacing={2} alignItems='center' justifyContent='center'>
+          <IconButton 
+            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            onClick={handleMicrophoneToggle}
+          >
+            {isMicrophoneOn ? <Microphone color="black" /> : <MicrophoneSlash color="black" />}
+          </IconButton>
+          <IconButton 
+            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            onClick={handleCameraToggle}
+          >
+            {isCameraOn ? <VideoCamera color="black" /> : <VideoCameraSlash color="black" />}
+          </IconButton>
+          <IconButton 
+            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            onClick={handleScreenToggle}
+          >
+            {isScreenOn ? <Monitor color="black" /> : <MonitorPlay color="black" />}
+          </IconButton>
+          <IconButton 
+            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            onClick={handleParticipantsToggle}
+          >
+            <Users color="black" />
+          </IconButton>
+          <IconButton 
+            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            onClick={handleChatsToggle}
+          >
+            <Chat color="black" />
+          </IconButton>
+          <IconButton 
+            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            onClick={handleLabelToggle}
+          >
+            <Info color="black" />
+          </IconButton>
+          <IconButton 
+            sx={{ backgroundColor: 'red', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(255, 0, 0, 0.86)' } }}
+            onClick={handleDisconnect}
+          >
+            <PhoneDisconnect color="white" />
+          </IconButton>
+        </Stack>
       </Box>
-    </Box>
+    </>
   );
 }
 
