@@ -1,4 +1,4 @@
-# LinkNest - Real-Time Video Conferencing Platform
+# LinkNest: Real-Time Video Conferencing Platform
 
 LinkNest is a modern, real-time video conferencing application built with React, WebRTC, and Socket.IO. It enables seamless video meetings, instant messaging, and collaborative features in a clean, intuitive interface.
 
