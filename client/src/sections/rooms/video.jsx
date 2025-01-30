@@ -29,13 +29,85 @@ const Video = () => {
     };
   }, [navigate]);
 
-  const handleMicrophoneToggle = () => {
-    setIsMicrophoneOn(!isMicrophoneOn);
+  const handleMicrophoneToggle = async () => {
+    const localStream = webRTCHandler.getLocalStream();
+    if (localStream) {
+      if (isMicrophoneOn) {
+        // Stop the microphone
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.stop();
+          localStream.removeTrack(audioTrack);
+        }
+      } else {
+        // Start the microphone
+        try {
+          const newStream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }
+          });
+          const newAudioTrack = newStream.getAudioTracks()[0];
+          localStream.addTrack(newAudioTrack);
+        } catch (err) {
+          console.error("Error accessing microphone:", err);
+          return;
+        }
+      }
+      setIsMicrophoneOn(!isMicrophoneOn);
+    }
   };
 
-  const handleCameraToggle = () => {
-    setIsCameraOn(!isCameraOn);
+  useEffect(() => {
+    // Initialize microphone state based on track status
+    const localStream = webRTCHandler.getLocalStream();
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      setIsMicrophoneOn(!!audioTrack && audioTrack.readyState === 'live');
+    }
+  }, []);
+
+  const handleCameraToggle = async () => {
+    const localStream = webRTCHandler.getLocalStream();
+    if (localStream) {
+      if (isCameraOn) {
+        // Stop the camera
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.stop();
+          localStream.removeTrack(videoTrack);
+        }
+      } else {
+        // Start the camera
+        try {
+          const newStream = await navigator.mediaDevices.getUserMedia({ 
+            video: {
+              width: { min: 640, ideal: 1280, max: 1920 },
+              height: { min: 480, ideal: 720, max: 1080 },
+              frameRate: { min: 15, ideal: 30, max: 30 }
+            }
+          });
+          const newVideoTrack = newStream.getVideoTracks()[0];
+          localStream.addTrack(newVideoTrack);
+        } catch (err) {
+          console.error("Error accessing camera:", err);
+          return;
+        }
+      }
+      setIsCameraOn(!isCameraOn);
+    }
   };
+
+  useEffect(() => {
+    // Initialize camera state based on track status
+    const localStream = webRTCHandler.getLocalStream();
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      setIsCameraOn(!!videoTrack && videoTrack.readyState === 'live');
+    }
+  }, []);
 
   const handleScreenToggle = () => {
     setIsScreenOn(!isScreenOn);
