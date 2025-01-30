@@ -26,23 +26,38 @@ export default defineConfig({
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
+    hmr: {
+      clientPort: 443 // Force HMR through HTTPS
+    }
   },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: true,
+    target: 'esnext',
+    minify: 'esbuild',
+    cssMinify: true,
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['@mui/material', '@emotion/react', '@emotion/styled'],
-        },
-      },
+          'vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui': ['@mui/material', '@emotion/react', '@emotion/styled'],
+          'icons': ['phosphor-react']
+        }
+      }
     },
+    chunkSizeWarningLimit: 1000
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', '@mui/material', 'phosphor-react'],
+    exclude: ['@socket.io/component-emitter']
+  },
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
+  }
 })
