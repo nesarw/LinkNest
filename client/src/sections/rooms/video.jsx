@@ -36,8 +36,16 @@ const Video = () => {
         // Stop the microphone
         const audioTrack = localStream.getAudioTracks()[0];
         if (audioTrack) {
-          audioTrack.stop();
+          audioTrack.enabled = false;  // First disable the track
+          audioTrack.stop();  // Then stop it
           localStream.removeTrack(audioTrack);
+          
+          // Update the stream without audio
+          const localVideo = document.querySelector('video[data-local="true"]');
+          if (localVideo) {
+            const videoTracks = localStream.getVideoTracks();
+            localVideo.srcObject = new MediaStream(videoTracks);
+          }
         }
       } else {
         // Start the microphone
@@ -46,11 +54,30 @@ const Video = () => {
             audio: {
               echoCancellation: true,
               noiseSuppression: true,
-              autoGainControl: true
+              autoGainControl: true,
+              latency: 0.01,
+              sampleSize: 16
             }
           });
           const newAudioTrack = newStream.getAudioTracks()[0];
+          
+          // Add the new audio track to the stream
           localStream.addTrack(newAudioTrack);
+          
+          // Update the video element with the new stream including audio
+          const localVideo = document.querySelector('video[data-local="true"]');
+          if (localVideo) {
+            const newMediaStream = new MediaStream([
+              newAudioTrack,
+              ...localStream.getVideoTracks()
+            ]);
+            localVideo.srcObject = newMediaStream;
+          }
+
+          // Notify peers about the track change
+          if (typeof wss.updatePeerConnections === 'function') {
+            wss.updatePeerConnections(localStream);
+          }
         } catch (err) {
           console.error("Error accessing microphone:", err);
           return;
@@ -76,21 +103,45 @@ const Video = () => {
         // Stop the camera
         const videoTrack = localStream.getVideoTracks()[0];
         if (videoTrack) {
-          videoTrack.stop();
+          videoTrack.enabled = false;  // First disable the track
+          videoTrack.stop();  // Then stop it
           localStream.removeTrack(videoTrack);
+          
+          // Update the video element to show blank screen
+          const localVideo = document.querySelector('video[data-local="true"]');
+          if (localVideo) {
+            localVideo.srcObject = new MediaStream(localStream.getAudioTracks());
+          }
         }
       } else {
         // Start the camera
         try {
           const newStream = await navigator.mediaDevices.getUserMedia({ 
             video: {
-              width: { min: 640, ideal: 1280, max: 1920 },
-              height: { min: 480, ideal: 720, max: 1080 },
-              frameRate: { min: 15, ideal: 30, max: 30 }
+              width: { min: 320, ideal: 640, max: 1280 },
+              height: { min: 240, ideal: 480, max: 720 },
+              frameRate: { ideal: 24 }
             }
           });
           const newVideoTrack = newStream.getVideoTracks()[0];
+          
+          // Add the new video track to the stream
           localStream.addTrack(newVideoTrack);
+          
+          // Update the video element with the new stream
+          const localVideo = document.querySelector('video[data-local="true"]');
+          if (localVideo) {
+            const newMediaStream = new MediaStream([
+              ...localStream.getAudioTracks(),
+              newVideoTrack
+            ]);
+            localVideo.srcObject = newMediaStream;
+          }
+
+          // Notify peers about the track change
+          if (typeof wss.updatePeerConnections === 'function') {
+            wss.updatePeerConnections(localStream);
+          }
         } catch (err) {
           console.error("Error accessing camera:", err);
           return;
