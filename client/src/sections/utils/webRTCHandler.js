@@ -6,104 +6,85 @@ const constraints = {
     audio: {
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 48000,
-        channelCount: 1,
-        latency: 0.01
+        autoGainControl: true
     },
     video: {
         width: { min: 640, ideal: 1280, max: 1920 },
         height: { min: 480, ideal: 720, max: 1080 },
-        aspectRatio: 1.7777777778,
-        frameRate: { min: 24, ideal: 30, max: 60 }
+        frameRate: { min: 15, ideal: 30, max: 30 }
     }
 };
 
 let localStream = null;
-const peers = new Map(); // Using Map for better key-value management
+const peers = new Map();
 let videoGrid;
 
-// Initialize stream with background fetch
-const initializeStream = async () => {
+export const getLocalStream = () => localStream;
+
+export const localPreviewInitConnection = async (isRoomHost, identity, roomId = null) => {
     try {
         if (!localStream) {
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            // Set up automatic quality monitoring
-            localStream.getTracks().forEach(track => {
-                track.addEventListener('ended', async () => {
-                    await refreshStream(track.kind);
-                });
+            console.log("Local Stream Received", localStream.getTracks());
+            
+            // Set bitrates for video track
+            localStream.getVideoTracks().forEach(track => {
+                const capabilities = track.getCapabilities();
+                if (capabilities.bitrate) {
+                    track.applyConstraints({
+                        ...constraints.video,
+                        bitrate: 1000000 // 1 Mbps
+                    }).catch(console.error);
+                }
             });
         }
+        
+        store.dispatch(setShowOverlay(false));
+
+        setupVideoGrid();
+        const localVideo = createVideo(localStream, true);
+        addVideoStream(localVideo, localStream);
+
+        // Monitor track status
+        localStream.getTracks().forEach(track => {
+            track.addEventListener('ended', () => {
+                console.log(`Local ${track.kind} track ended`);
+                refreshLocalStream();
+            });
+
+            track.addEventListener('mute', () => {
+                console.log(`Local ${track.kind} track muted`);
+            });
+
+            track.addEventListener('unmute', () => {
+                console.log(`Local ${track.kind} track unmuted`);
+            });
+        });
+
+        isRoomHost ? wss.createNewRoom(identity) : wss.joinRoom(roomId, identity);
         return localStream;
     } catch (err) {
-        console.error('Error initializing stream:', err);
+        console.error("Error accessing media devices:", err);
+        store.dispatch(setShowOverlay(true));
         throw err;
     }
 };
 
-// Refresh specific track type (audio/video)
-const refreshStream = async (trackKind) => {
+const refreshLocalStream = async () => {
     try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-            [trackKind]: constraints[trackKind]
-        });
-        const newTrack = newStream.getTracks().find(t => t.kind === trackKind);
+        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+        localStream = newStream;
         
-        if (newTrack && localStream) {
-            const oldTrack = localStream.getTracks().find(t => t.kind === trackKind);
-            if (oldTrack) {
-                oldTrack.stop();
-                localStream.removeTrack(oldTrack);
-            }
-            localStream.addTrack(newTrack);
-            
-            // Update all peer connections
-            peers.forEach((peer, userId) => {
-                if (peer.connection) {
-                    const sender = peer.connection.getSenders().find(s => s.track?.kind === trackKind);
-                    if (sender) {
-                        sender.replaceTrack(newTrack.clone());
-                    }
-                }
-            });
-
-            // Update local video if it's video track
-            if (trackKind === 'video') {
-                const localVideo = document.querySelector('video[data-local="true"]');
-                if (localVideo) {
-                    localVideo.srcObject = localStream;
-                }
-            }
+        // Update local video
+        const localVideo = document.querySelector('video[data-local="true"]');
+        if (localVideo) {
+            localVideo.srcObject = localStream;
         }
+
+        // Update all peer connections with new stream
+        wss.updatePeerConnections(localStream);
     } catch (err) {
-        console.error(`Error refreshing ${trackKind} track:`, err);
-    }
-};
-
-export const localPreviewInitConnection = async (isRoomHost, identity, roomId = null) => {
-    try {
-        const stream = await initializeStream();
-        console.log("Local Stream Received");
-        store.dispatch(setShowOverlay(false));
-
-        setupVideoGrid();
-        addVideoStream(createVideo(stream, true), stream);
-
-        // Monitor device changes
-        navigator.mediaDevices.addEventListener('devicechange', async () => {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const hasVideo = devices.some(d => d.kind === 'videoinput');
-            const hasAudio = devices.some(d => d.kind === 'audioinput');
-            
-            if (hasVideo) await refreshStream('video');
-            if (hasAudio) await refreshStream('audio');
-        });
-
-        isRoomHost ? wss.createNewRoom(identity) : wss.joinRoom(roomId, identity);
-    } catch (err) {
-        console.error("Error accessing media devices:", err);
-        store.dispatch(setShowOverlay(true));
+        console.error('Error refreshing local stream:', err);
     }
 };
 
@@ -113,7 +94,7 @@ const createVideo = (stream, isLocal = false) => {
     video.style.height = '100%';
     video.style.objectFit = 'cover';
     video.style.borderRadius = '12px';
-    video.style.transform = 'scaleX(-1)';
+    video.style.transform = isLocal ? 'scaleX(-1)' : 'none';
     video.style.backgroundColor = '#000';
     video.srcObject = stream;
     video.autoplay = true;
@@ -159,21 +140,38 @@ const updateGridLayout = () => {
 };
 
 export const handleRemoteStream = (stream, peerId) => {
-    // Remove existing peer if any
+    console.log('Handling remote stream for peer:', peerId, stream.getTracks());
+    
+    // Remove existing peer stream if any
     removeRemoteStream(peerId);
 
-    const remoteVideo = createVideo(stream);
-    addVideoStream(remoteVideo, stream);
-    
-    peers.set(peerId, {
-        stream,
-        video: remoteVideo
-    });
+    try {
+        // Create and add new video element
+        const remoteVideo = createVideo(stream, false);
+        addVideoStream(remoteVideo, stream);
+
+        // Store peer information
+        peers.set(peerId, {
+            stream,
+            video: remoteVideo
+        });
+
+        // Monitor remote stream tracks
+        stream.getTracks().forEach(track => {
+            console.log(`Remote ${track.kind} track added for peer:`, peerId);
+            track.onended = () => {
+                console.log(`Remote ${track.kind} track ended for peer:`, peerId);
+            };
+        });
+    } catch (err) {
+        console.error('Error handling remote stream:', err);
+    }
 };
 
 export const removeRemoteStream = (peerId) => {
     const peer = peers.get(peerId);
     if (peer) {
+        console.log('Removing remote stream for peer:', peerId);
         if (peer.video && peer.video.parentNode) {
             peer.video.parentNode.remove();
         }
@@ -186,6 +184,8 @@ export const removeRemoteStream = (peerId) => {
 };
 
 export const stopLocalStream = () => {
+    console.log('Stopping all streams...');
+    
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
