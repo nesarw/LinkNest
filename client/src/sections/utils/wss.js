@@ -29,9 +29,10 @@ const socketOptions = {
     rejectUnauthorized: false
 };
 
-const METERED_API_KEY = 'cd5bae0ec2cc1dd370a7364ab654ca7aecff';
-const METERED_USERNAME = '751e7aff8813c87ff1ddc86e';
-const METERED_CREDENTIAL = 'epl85J1pcgrPI0pa';
+// Using environment variables for sensitive credentials
+const METERED_API_KEY = import.meta.env.VITE_METERED_API_KEY;
+const METERED_USERNAME = import.meta.env.VITE_METERED_USERNAME;
+const METERED_CREDENTIAL = import.meta.env.VITE_METERED_CREDENTIAL;
 
 // Updated ICE server configuration with Metered TURN/STUN servers
 const getIceServers = () => ({
