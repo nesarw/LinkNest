@@ -27,7 +27,7 @@ export default defineConfig({
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
     hmr: {
-      clientPort: 443 // Force HMR through HTTPS
+      clientPort: 443 // Force HMR through HTTPS 
     }
   },
   build: {
