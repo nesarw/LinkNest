@@ -6,13 +6,42 @@ const constraints = {
     audio: {
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true
+        autoGainControl: true,
+        latency: 0.01,  // Minimize audio latency
+        sampleSize: 16  // Standard sample size for good quality/performance balance
     },
     video: {
-        width: { min: 640, ideal: 1280, max: 1920 },
-        height: { min: 480, ideal: 720, max: 1080 },
-        frameRate: { min: 15, ideal: 30, max: 30 }
+        width: { min: 320, ideal: 640, max: 1280 },  // Reduced resolution for better performance
+        height: { min: 240, ideal: 480, max: 720 },
+        frameRate: { ideal: 24 },  // Reduced framerate for better performance
+        encodings: [
+            {
+                maxBitrate: 500000,  // 500kbps for reduced bandwidth usage
+                scaleResolutionDownBy: 1.0
+            }
+        ]
     }
+};
+
+// Add ICE server configuration for better connectivity
+const iceConfiguration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+    ],
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'all',
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
+};
+
+// Add connection options for peer connections
+const peerConnectionOptions = {
+    optional: [
+        { DtlsSrtpKeyAgreement: true },
+        { RtpDataChannels: true }
+    ]
 };
 
 let localStream = null;
@@ -25,17 +54,25 @@ export const localPreviewInitConnection = async (isRoomHost, identity, roomId = 
     try {
         if (!localStream) {
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            console.log("Local Stream Received", localStream.getTracks());
             
-            // Set bitrates for video track
+            // Optimize video encoding
             localStream.getVideoTracks().forEach(track => {
                 const capabilities = track.getCapabilities();
                 if (capabilities.bitrate) {
                     track.applyConstraints({
                         ...constraints.video,
-                        bitrate: 1000000 // 1 Mbps
+                        bitrate: 500000  // 500kbps for better performance
                     }).catch(console.error);
                 }
+            });
+
+            // Optimize audio encoding
+            localStream.getAudioTracks().forEach(track => {
+                track.applyConstraints({
+                    ...constraints.audio,
+                    echoCancellation: true,
+                    noiseSuppression: true
+                }).catch(console.error);
             });
         }
         

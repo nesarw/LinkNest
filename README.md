@@ -1,6 +1,6 @@
 # LinkNest: Real-Time Video Conferencing Platform
 
-LinkNest is a modern, real-time video conferencing application built with React, WebRTC, and Socket.IO. It enables seamless video meetings, instant messaging, and collaborative features in a clean, intuitive interface. 
+LinkNest is a modern, real-time video conferencing application built with React, WebRTC, and Socket.IO. It enables seamless video meetings, instant messaging, and collaborative features in a clean, intuitive interface.
 
 ## 🚀 Features
 
@@ -26,7 +26,7 @@ LinkNest is a modern, real-time video conferencing application built with React,
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/LinkNest.git
+   git clone https://github.com/nesarw/LinkNest.git
    cd LinkNest
    ```
 

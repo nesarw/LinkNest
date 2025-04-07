@@ -3,8 +3,10 @@ const http = require('http');
 const cors = require('cors');
 const path = require('path');
 const twilio = require('twilio');
+const db = require("./firebase");
+const admin = require("firebase-admin");
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT ||  8000;
 
 const app = express();
 const server = http.createServer(app);
@@ -12,7 +14,6 @@ const server = http.createServer(app);
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../client/dist')));
 
 let connectedUsers = [];
 let rooms = [];
@@ -31,6 +32,8 @@ const generateUniqueRoomID = () => {
     previousRoomIDs.add(roomID);
     return roomID;
 };
+
+
 
 // API Routes
 app.get('/api/rooms-exists/:roomID', (req, res) => {
@@ -55,10 +58,7 @@ app.get('/api/participants', (req, res) => {
     res.status(200).json({ participants });
 });
 
-// Serve React app for all other routes
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-});
+
 
 // Socket.IO setup
 const io = require('socket.io')(server, {
@@ -81,6 +81,8 @@ io.on('connection', (socket) => {
         socket.emit('room-created', { roomID });
         io.to(roomID).emit('update-participants', rooms.find(room => room.roomID === roomID).participants);
     });
+
+
 
     // Handle WebRTC signaling
     socket.on('offer', (data) => {
@@ -123,11 +125,18 @@ io.on('connection', (socket) => {
             } else {
                 socket.emit('error', { message: 'Room is full' });
             }
+            socket.emit('room-joined', { roomID: data.roomId });
+
             console.log('Connected Users:', connectedUsers);
             io.to(data.roomId).emit('update-participants', room.participants);
         } else {
             socket.emit('error', { message: 'Room not found' });
         }
+    });
+
+    socket.on("join-chat-room", ({ roomId }) => {
+        console.log(`User ${socket.id} joining chat room ${roomId}`);
+        socket.join(roomId);
     });
 
     socket.on('leave-room', () => {
@@ -171,6 +180,69 @@ io.on('connection', (socket) => {
             }
         }
     });
+});
+
+//chat server ---------------------------------------------------------------------- 
+// API Route for Chat Messages (Send Message)
+app.post("/api/rooms/:roomId", async (req, res) => {
+    const { roomId } = req.params;
+    const { username, message } = req.body;
+
+    try {
+        const messageRef = db.collection("rooms").doc(roomId).collection("messages").doc();
+        await messageRef.set({
+            sender: username,
+            text: message,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        const savedMessage = await messageRef.get();
+        const messageData = savedMessage.data();
+
+        io.to(roomId).emit("new-message", {
+            username,
+            message,
+            timestamp: messageData.timestamp ? messageData.timestamp.toDate().toISOString() : null,
+        });
+
+
+
+        res.json({ success: true, message: "Message sent!" });
+    } catch (error) {
+        res.status(500).json({ error: "Error sending message", details: error.message });
+    }
+});
+
+// API Route for Chat Messages (Fetch Messages)
+app.get("/api/rooms/:roomId", async (req, res) => {
+    const { roomId } = req.params;
+
+    try {
+        const messagesRef = db.collection("rooms").doc(roomId).collection("messages").orderBy("timestamp", "asc");
+        const snapshot = await messagesRef.get();
+
+        const messages = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                sender: data.sender || "Unknown", // Avoid crashes if sender is missing
+                text: data.text || "", // Ensure text is not undefined
+                timestamp: data.timestamp ? data.timestamp.toDate().toISOString() : null, // Convert Firestore timestamp to ISO format
+
+            };
+        });
+
+        res.json({ success: true, messages });
+    } catch (error) {
+        res.status(500).json({ error: "Error fetching messages", details: error.message });
+    }
+});
+//-----------------------------------------------------------------------------
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+// Serve React app for all other routes
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 // Start server
