@@ -12,7 +12,7 @@ const Video = () => {
   const navigate = useNavigate();
   const [isMicrophoneOn, setIsMicrophoneOn] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(true);
-  const [isScreenOn, setIsScreenOn] = useState(true);
+  const [isScreenOn, setIsScreenOn] = useState(false);
   const [isParticipantsVisible, setIsParticipantsVisible] = useState(false);
   const [isLabelVisible, setIsLabelVisible] = useState(false);
   const [isChatsVisible, setIsChatsVisible] = useState(false);
@@ -160,8 +160,31 @@ const Video = () => {
     }
   }, []);
 
-  const handleScreenToggle = () => {
-    setIsScreenOn(!isScreenOn);
+  const handleScreenToggle = async () => {
+    try {
+      if (isScreenOn) {
+        const success = await webRTCHandler.stopScreenSharing();
+        if (success) {
+          setIsScreenOn(false);
+        }
+      } else {
+        const success = await webRTCHandler.startScreenSharing();
+        if (success) {
+          setIsScreenOn(true);
+          // Add screen track ended listener
+          const screenStream = webRTCHandler.getScreenStream();
+          if (screenStream) {
+            screenStream.getVideoTracks()[0].onended = () => {
+              webRTCHandler.stopScreenSharing();
+              setIsScreenOn(false);
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling screen share:', err);
+      setIsScreenOn(false);
+    }
   };
 
   const handleParticipantsToggle = () => {
@@ -246,10 +269,16 @@ const Video = () => {
             {isCameraOn ? <VideoCamera color="black" /> : <VideoCameraSlash color="black" />}
           </IconButton>
           <IconButton 
-            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
             onClick={handleScreenToggle}
+            sx={{
+              backgroundColor: isScreenOn ? 'primary.main' : 'white',
+              borderRadius: '50%',
+              '&:hover': {
+                backgroundColor: isScreenOn ? 'primary.dark' : 'rgba(198, 198, 198, 0.86)'
+              }
+            }}
           >
-            {isScreenOn ? <Monitor color="black" /> : <MonitorPlay color="black" />}
+            {isScreenOn ? <MonitorPlay color="white" size={24} /> : <Monitor color="black" size={24} />}
           </IconButton>
           <IconButton 
             sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}

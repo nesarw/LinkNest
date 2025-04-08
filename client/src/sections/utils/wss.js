@@ -1,7 +1,7 @@
 import io from 'socket.io-client';
 import { store } from '../../redux/store';
 import { updateRoomID } from '../../redux/slices/app';
-import { handleRemoteStream, removeRemoteStream, getLocalStream } from './webRTCHandler';
+import { handleRemoteStream, removeRemoteStream, getLocalStream, getScreenStream } from './webRTCHandler';
 
 // Determine server URL based on environment
 const getServerUrl = () => {
@@ -100,6 +100,8 @@ const createPeerConnection = (userID) => {
 
     // Add local stream tracks
     const localStream = getLocalStream();
+    const screenStream = getScreenStream();
+
     if (localStream) {
         console.log('Adding local tracks to peer connection');
         localStream.getTracks().forEach(track => {
@@ -117,31 +119,67 @@ const createPeerConnection = (userID) => {
                 sender.setParameters(params).catch(console.error);
             }
         });
-    } else {
-        console.warn('No local stream available when creating peer connection');
+    }
+
+    // Add screen sharing stream if active
+    if (screenStream) {
+        console.log('Adding screen sharing tracks to peer connection');
+        screenStream.getTracks().forEach(track => {
+            track.contentHint = 'screen';
+            console.log('Adding screen track to peer connection:', track.kind);
+            const sender = peerConnection.addTrack(track, screenStream);
+            if (sender) {
+                const params = sender.getParameters();
+                if (!params.encodings) {
+                    params.encodings = [{}];
+                }
+                params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps for screen sharing
+                params.encodings[0].maxFramerate = 30;
+                sender.setParameters(params).catch(console.error);
+            }
+        });
     }
 
     // Handle remote tracks
     peerConnection.ontrack = (event) => {
-        console.log('Received remote track:', event.track.kind);
-        if (!connectedPeers.has(userID)) {
-            const [remoteStream] = event.streams;
-            if (remoteStream) {
-                console.log('Processing remote stream for:', userID);
-                handleRemoteStream(remoteStream, userID);
-                connectedPeers.add(userID);
+        console.log('Received remote track:', event.track.kind, 'contentHint:', event.track.contentHint);
+        const [remoteStream] = event.streams;
+        
+        if (remoteStream) {
+            // Check if this is a screen sharing stream
+            const isScreenShare = event.track.contentHint === 'screen' || // Check for screen sharing hint
+                                remoteStream.id.includes('screen') || // Fallback checks
+                                event.track.label.includes('screen') || 
+                                event.track.label.includes('display');
 
-                // Monitor track status
-                event.track.onended = () => {
-                    console.log(`Remote ${event.track.kind} track ended for peer:`, userID);
-                };
-                event.track.onmute = () => {
-                    console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
-                };
-                event.track.onunmute = () => {
-                    console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
-                };
+            console.log('Processing remote stream for:', userID, isScreenShare ? '(screen)' : '(camera)', 'stream ID:', remoteStream.id);
+            
+            // Create a new MediaStream for this track
+            const streamToHandle = new MediaStream([event.track]);
+            
+            // Handle the stream based on its type
+            handleRemoteStream(streamToHandle, userID, isScreenShare);
+            
+            if (!isScreenShare) {
+                connectedPeers.add(userID);
             }
+
+            // Monitor track status
+            event.track.onended = () => {
+                console.log(`Remote ${event.track.kind} track ended for peer:`, userID);
+                if (isScreenShare) {
+                    const screenContainer = document.getElementById('screen-share-container');
+                    if (screenContainer) {
+                        screenContainer.innerHTML = '';
+                    }
+                }
+            };
+            event.track.onmute = () => {
+                console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
+            };
+            event.track.onunmute = () => {
+                console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
+            };
         }
     };
 
@@ -254,22 +292,31 @@ export const connectwithSocketIOServer = () => {
     });
 
     socket.on('offer', async (data) => {
-        const { offer, from } = data;
-        console.log('Received offer from:', from);
+        const { offer, from, isScreenShare } = data;
+        console.log('Received offer from:', from, isScreenShare ? '(screen share)' : '(camera)');
         
-        if (!connectedPeers.has(from)) {
-            try {
-                const peerConnection = createPeerConnection(from);
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-                
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                
-                console.log('Sending answer to:', from);
-                socket.emit('answer', { target: from, answer });
-            } catch (err) {
-                console.error('Error handling offer:', err);
+        try {
+            let peerConnection = peerConnections[from];
+            if (!peerConnection) {
+                peerConnection = createPeerConnection(from);
             }
+            
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            
+            const answer = await peerConnection.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+            await peerConnection.setLocalDescription(answer);
+            
+            console.log('Sending answer to:', from);
+            socket.emit('answer', { 
+                target: from, 
+                answer,
+                isScreenShare 
+            });
+        } catch (err) {
+            console.error('Error handling offer:', err);
         }
     });
 
@@ -353,13 +400,40 @@ export const leaveRoom = () => {
     }
 };
 
-export const updatePeerConnections = (newStream) => {
+export const getPeerConnections = () => peerConnections;
+
+export const updatePeerConnections = (stream, isScreenShare = false) => {
     Object.entries(peerConnections).forEach(([userId, peerConnection]) => {
         const senders = peerConnection.getSenders();
-        newStream.getTracks().forEach(track => {
-            const sender = senders.find(s => s.track?.kind === track.kind);
+        
+        stream.getTracks().forEach(track => {
+            if (isScreenShare) {
+                track.contentHint = 'screen';
+            }
+            
+            const sender = senders.find(s => 
+                s.track && s.track.kind === track.kind && 
+                (isScreenShare ? s.track.contentHint === 'screen' : s.track.contentHint !== 'screen')
+            );
+            
             if (sender) {
-                sender.replaceTrack(track);
+                sender.replaceTrack(track).catch(console.error);
+            } else {
+                peerConnection.addTrack(track, stream);
+            }
+
+            // Set encoding parameters
+            if (track.kind === 'video') {
+                const sender = peerConnection.getSenders().find(s => s.track === track);
+                if (sender) {
+                    const params = sender.getParameters();
+                    if (!params.encodings) {
+                        params.encodings = [{}];
+                    }
+                    params.encodings[0].maxBitrate = isScreenShare ? 2500000 : 1000000; // 2.5 Mbps for screen, 1 Mbps for camera
+                    params.encodings[0].maxFramerate = 30;
+                    sender.setParameters(params).catch(console.error);
+                }
             }
         });
     });
