@@ -161,14 +161,14 @@ const setupVideoGrid = () => {
     mainContainer.style.width = '100%';
     mainContainer.style.padding = '16px';
 
-    // Create screen share container
+    // Create screen share container with initial hidden state
     const screenShareContainer = document.createElement('div');
     screenShareContainer.id = 'screen-share-container';
     screenShareContainer.style.flex = '1';
     screenShareContainer.style.minHeight = '60%';
     screenShareContainer.style.backgroundColor = '#1a1a1a';
     screenShareContainer.style.borderRadius = '12px';
-    screenShareContainer.style.display = 'flex';
+    screenShareContainer.style.display = 'none';  // Initially hidden
     screenShareContainer.style.justifyContent = 'center';
     screenShareContainer.style.alignItems = 'center';
     screenShareContainer.style.overflow = 'hidden';
@@ -179,7 +179,7 @@ const setupVideoGrid = () => {
     cameraGrid.style.display = 'grid';
     cameraGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
     cameraGrid.style.gap = '8px';
-    cameraGrid.style.flex = '0 0 35%';
+    cameraGrid.style.flex = '1';  // Changed from '0 0 35%' to '1'
     cameraGrid.style.minHeight = '200px';
 
     // Clear and set up the structure
@@ -222,7 +222,8 @@ const addVideoStream = (video, stream) => {
         videoWrapper.style.width = '100%';
         videoWrapper.style.height = '100%';
         video.style.objectFit = 'contain';
-        // Clear previous screen shares
+        // Show screen share container and clear previous content
+        container.style.display = 'flex';
         container.innerHTML = '';
     } else {
         videoWrapper.style.aspectRatio = '16/9';
@@ -463,10 +464,11 @@ export const stopScreenSharing = async () => {
             track.stop();
         });
         
-        // Remove screen sharing container
-        const screenContainer = document.querySelector('.screen-share-container[data-peer="local"]');
+        // Remove screen sharing container and hide it
+        const screenContainer = document.getElementById('screen-share-container');
         if (screenContainer) {
-            screenContainer.remove();
+            screenContainer.innerHTML = '';
+            screenContainer.style.display = 'none';
         }
 
         // Remove screen tracks from peer connections
