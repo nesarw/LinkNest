@@ -169,24 +169,26 @@ const setupVideoGrid = () => {
     // Create screen share container with initial hidden state
     const screenShareContainer = document.createElement('div');
     screenShareContainer.id = 'screen-share-container';
-    screenShareContainer.style.flex = '1';
-    screenShareContainer.style.minHeight = '60%';
+    screenShareContainer.style.flex = '0 0 auto'; // Don't allow container to grow
+    screenShareContainer.style.height = '400px'; // Fixed height
     screenShareContainer.style.backgroundColor = '#1a1a1a';
     screenShareContainer.style.borderRadius = '12px';
     screenShareContainer.style.display = 'none';  // Initially hidden
     screenShareContainer.style.justifyContent = 'center';
     screenShareContainer.style.alignItems = 'center';
     screenShareContainer.style.overflow = 'hidden';
+    screenShareContainer.style.width = '68%'; // Reduced width
+    screenShareContainer.style.margin = '0 auto';
 
     // Create camera feeds grid
     const cameraGrid = document.createElement('div');
     cameraGrid.id = 'video-grid';
     cameraGrid.style.display = 'grid';
-    cameraGrid.style.gap = '8px';
+    cameraGrid.style.gap = '16px';
     cameraGrid.style.flex = '1';
     cameraGrid.style.minHeight = '200px';
-    cameraGrid.style.width = '100%';
-    cameraGrid.style.height = '100%';
+    cameraGrid.style.width = '90%'; // Match screen share container width
+    cameraGrid.style.margin = '0 auto';
     cameraGrid.style.alignItems = 'center';
     cameraGrid.style.justifyContent = 'center';
 
@@ -224,20 +226,23 @@ const addVideoStream = (video, stream) => {
         const videoWrapper = document.createElement('div');
         videoWrapper.style.position = 'relative';
         videoWrapper.style.width = '100%';
-        videoWrapper.style.height = '0';
-        videoWrapper.style.paddingBottom = '56.25%'; // 16:9 aspect ratio
         videoWrapper.style.borderRadius = '12px';
         videoWrapper.style.overflow = 'hidden';
-        videoWrapper.style.backgroundColor = '#000';
 
         if (isScreenShare) {
-            videoWrapper.style.width = '100%';
             videoWrapper.style.height = '100%';
+            video.style.width = '100%';
+            video.style.height = '100%';
             video.style.objectFit = 'contain';
+            video.style.backgroundColor = 'transparent';
             // Show screen share container and clear previous content
             container.style.display = 'flex';
+            container.style.backgroundColor = '#1a1a1a';
             container.innerHTML = '';
         } else {
+            videoWrapper.style.height = '0';
+            videoWrapper.style.paddingBottom = '56.25%'; // 16:9 aspect ratio
+            videoWrapper.style.backgroundColor = '#000';
             video.style.position = 'absolute';
             video.style.top = '0';
             video.style.left = '0';
@@ -325,27 +330,29 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                 const screenContainer = document.createElement('div');
                 screenContainer.className = 'screen-share-container';
                 screenContainer.setAttribute('data-peer', peerId);
-                screenContainer.style.position = 'absolute';
-                screenContainer.style.top = '16px';
-                screenContainer.style.right = '16px';
-                screenContainer.style.width = '25%';
-                screenContainer.style.minWidth = '320px';
-                screenContainer.style.height = 'auto';
-                screenContainer.style.zIndex = '1000';
+                screenContainer.style.width = '100%';
+                screenContainer.style.height = '100%';
+                screenContainer.style.position = 'relative';
                 screenContainer.style.borderRadius = '12px';
                 screenContainer.style.overflow = 'hidden';
-                screenContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
                 screenContainer.style.backgroundColor = '#000';
+                screenContainer.style.display = 'flex';
+                screenContainer.style.alignItems = 'center';
+                screenContainer.style.justifyContent = 'center';
 
                 const screenVideo = createVideo(stream, false, true);
-                screenVideo.style.width = '100%';
-                screenVideo.style.height = '80%';
+                screenVideo.style.width = 'auto';
+                screenVideo.style.height = '100%';
+                screenVideo.style.maxWidth = '100%';
+                screenVideo.style.objectFit = 'contain';
                 screenContainer.appendChild(screenVideo);
 
-                // Add the screen container to the video grid parent
-                const videoGrid = document.getElementById('video-grid');
-                if (videoGrid && videoGrid.parentNode) {
-                    videoGrid.parentNode.appendChild(screenContainer);
+                // Add the screen container to the screen share container
+                const screenShareContainer = document.getElementById('screen-share-container');
+                if (screenShareContainer) {
+                    screenShareContainer.style.display = 'flex';
+                    screenShareContainer.innerHTML = '';
+                    screenShareContainer.appendChild(screenContainer);
                 }
             } else {
                 // Handle regular video stream
