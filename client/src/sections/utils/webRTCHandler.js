@@ -182,10 +182,13 @@ const setupVideoGrid = () => {
     const cameraGrid = document.createElement('div');
     cameraGrid.id = 'video-grid';
     cameraGrid.style.display = 'grid';
-    cameraGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
     cameraGrid.style.gap = '8px';
-    cameraGrid.style.flex = '1';  // Changed from '0 0 35%' to '1'
+    cameraGrid.style.flex = '1';
     cameraGrid.style.minHeight = '200px';
+    cameraGrid.style.width = '100%';
+    cameraGrid.style.height = '100%';
+    cameraGrid.style.alignItems = 'center';
+    cameraGrid.style.justifyContent = 'center';
 
     // Clear and set up the structure
     mainContainer.innerHTML = '';
@@ -221,9 +224,11 @@ const addVideoStream = (video, stream) => {
         const videoWrapper = document.createElement('div');
         videoWrapper.style.position = 'relative';
         videoWrapper.style.width = '100%';
-        videoWrapper.style.height = '100%';
+        videoWrapper.style.height = '0';
+        videoWrapper.style.paddingBottom = '56.25%'; // 16:9 aspect ratio
         videoWrapper.style.borderRadius = '12px';
         videoWrapper.style.overflow = 'hidden';
+        videoWrapper.style.backgroundColor = '#000';
 
         if (isScreenShare) {
             videoWrapper.style.width = '100%';
@@ -233,12 +238,12 @@ const addVideoStream = (video, stream) => {
             container.style.display = 'flex';
             container.innerHTML = '';
         } else {
-            videoWrapper.style.aspectRatio = '16/9';
+            video.style.position = 'absolute';
+            video.style.top = '0';
+            video.style.left = '0';
+            video.style.width = '100%';
+            video.style.height = '100%';
             video.style.objectFit = 'cover';
-            // Only set background color if there are video tracks
-            if (hasVideoTrack) {
-                videoWrapper.style.backgroundColor = '#000';
-            }
         }
 
         // Add stream type indicator
@@ -275,21 +280,29 @@ const updateGridLayout = () => {
 
     // Update camera grid layout
     const cameras = Array.from(cameraGrid.children);
-    const columns = cameras.length === 1 ? 1 : Math.min(4, Math.max(2, Math.ceil(Math.sqrt(cameras.length))));
+    const columns = cameras.length === 1 ? 1 : 2;
     
     cameraGrid.style.display = 'grid';
     cameraGrid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
-    cameraGrid.style.gap = '8px';
+    cameraGrid.style.gap = '16px';
+    cameraGrid.style.maxWidth = '100%'; // Use full width
+    cameraGrid.style.margin = '0 auto';
+    cameraGrid.style.height = 'auto';
     
     // Update all video containers
     cameras.forEach(container => {
-        container.style.aspectRatio = cameras.length === 1 ? '16/9' : '9/16';
         container.style.backgroundColor = '#000';
         container.style.borderRadius = '12px';
         container.style.overflow = 'hidden';
+        container.style.width = '100%';
+        container.style.position = 'relative';
+        container.style.paddingBottom = '56.25%'; // 16:9 aspect ratio
         
         const video = container.querySelector('video');
         if (video) {
+            video.style.position = 'absolute';
+            video.style.top = '0';
+            video.style.left = '0';
             video.style.width = '100%';
             video.style.height = '100%';
             video.style.objectFit = 'cover';
@@ -326,7 +339,7 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
 
                 const screenVideo = createVideo(stream, false, true);
                 screenVideo.style.width = '100%';
-                screenVideo.style.height = 'auto';
+                screenVideo.style.height = '80%';
                 screenContainer.appendChild(screenVideo);
 
                 // Add the screen container to the video grid parent
