@@ -169,15 +169,15 @@ const setupVideoGrid = () => {
     // Create screen share container with initial hidden state
     const screenShareContainer = document.createElement('div');
     screenShareContainer.id = 'screen-share-container';
-    screenShareContainer.style.flex = '0 0 auto'; // Don't allow container to grow
-    screenShareContainer.style.height = '400px'; // Fixed height
+    screenShareContainer.style.flex = '0 0 auto';
+    screenShareContainer.style.height = '350px'; // Reduced height
     screenShareContainer.style.backgroundColor = '#1a1a1a';
     screenShareContainer.style.borderRadius = '12px';
-    screenShareContainer.style.display = 'none';  // Initially hidden
+    screenShareContainer.style.display = 'none';
     screenShareContainer.style.justifyContent = 'center';
     screenShareContainer.style.alignItems = 'center';
     screenShareContainer.style.overflow = 'hidden';
-    screenShareContainer.style.width = '68%'; // Reduced width
+    screenShareContainer.style.width = '65%';
     screenShareContainer.style.margin = '0 auto';
 
     // Create camera feeds grid
@@ -185,9 +185,9 @@ const setupVideoGrid = () => {
     cameraGrid.id = 'video-grid';
     cameraGrid.style.display = 'grid';
     cameraGrid.style.gap = '16px';
-    cameraGrid.style.flex = '1';
-    cameraGrid.style.minHeight = '200px';
-    cameraGrid.style.width = '90%'; // Match screen share container width
+    cameraGrid.style.flex = '0 0 auto'; // Don't allow flex growth
+    cameraGrid.style.height = '200px'; // Fixed height for single user
+    cameraGrid.style.width = '65%';
     cameraGrid.style.margin = '0 auto';
     cameraGrid.style.alignItems = 'center';
     cameraGrid.style.justifyContent = 'center';
@@ -281,18 +281,28 @@ const addVideoStream = (video, stream) => {
 
 const updateGridLayout = () => {
     const cameraGrid = document.getElementById('video-grid');
+    const screenShareContainer = document.getElementById('screen-share-container');
     if (!cameraGrid) return;
 
     // Update camera grid layout
     const cameras = Array.from(cameraGrid.children);
     const columns = cameras.length === 1 ? 1 : 2;
+    const isScreenSharing = screenShareContainer && screenShareContainer.style.display !== 'none';
     
     cameraGrid.style.display = 'grid';
     cameraGrid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
     cameraGrid.style.gap = '16px';
-    cameraGrid.style.maxWidth = '100%'; // Use full width
+    cameraGrid.style.maxWidth = '100%';
     cameraGrid.style.margin = '0 auto';
-    cameraGrid.style.height = 'auto';
+    
+    // Adjust height based on number of users and screen sharing state
+    if (cameras.length === 1 && isScreenSharing) {
+        cameraGrid.style.height = '200px'; // Fixed height for single user with screen share
+        cameraGrid.style.flex = '0 0 auto';
+    } else {
+        cameraGrid.style.height = 'auto';
+        cameraGrid.style.flex = '1';
+    }
     
     // Update all video containers
     cameras.forEach(container => {
