@@ -134,7 +134,12 @@ const createVideo = (stream, isLocal, isScreen = false) => {
     video.style.objectFit = isScreen ? 'contain' : 'cover';
     video.style.borderRadius = '12px';
     video.style.transform = isLocal ? 'scaleX(-1)' : 'none';
-    video.style.backgroundColor = '#000';
+    
+    // Only set background color if there are video tracks
+    if (stream.getVideoTracks().length > 0) {
+        video.style.backgroundColor = '#000';
+    }
+    
     video.srcObject = stream;
     video.autoplay = true;
     video.playsInline = true;
@@ -204,57 +209,64 @@ const addVideoStream = (video, stream) => {
     }
 
     const isScreenShare = video.hasAttribute('data-screen');
+    const hasVideoTrack = stream.getVideoTracks().length > 0;
     const container = isScreenShare ? 
         document.getElementById('screen-share-container') : 
         document.getElementById('video-grid');
 
     if (!container) return;
 
-    const videoWrapper = document.createElement('div');
-    videoWrapper.style.position = 'relative';
-    videoWrapper.style.width = '100%';
-    videoWrapper.style.height = '100%';
-    videoWrapper.style.backgroundColor = '#000';
-    videoWrapper.style.borderRadius = '12px';
-    videoWrapper.style.overflow = 'hidden';
-
-    if (isScreenShare) {
+    // Only create video wrapper if there's a video track or it's a screen share
+    if (hasVideoTrack || isScreenShare) {
+        const videoWrapper = document.createElement('div');
+        videoWrapper.style.position = 'relative';
         videoWrapper.style.width = '100%';
         videoWrapper.style.height = '100%';
-        video.style.objectFit = 'contain';
-        // Show screen share container and clear previous content
-        container.style.display = 'flex';
-        container.innerHTML = '';
-    } else {
-        videoWrapper.style.aspectRatio = '16/9';
-        video.style.objectFit = 'cover';
-    }
+        videoWrapper.style.borderRadius = '12px';
+        videoWrapper.style.overflow = 'hidden';
 
-    // Add stream type indicator
-    const streamType = isScreenShare ? 'Screen Share' : 'Camera';
-    const indicator = document.createElement('div');
-    indicator.style.position = 'absolute';
-    indicator.style.top = '8px';
-    indicator.style.left = '8px';
-    indicator.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-    indicator.style.color = 'white';
-    indicator.style.padding = '4px 8px';
-    indicator.style.borderRadius = '4px';
-    indicator.style.fontSize = '12px';
-    indicator.textContent = streamType;
+        if (isScreenShare) {
+            videoWrapper.style.width = '100%';
+            videoWrapper.style.height = '100%';
+            video.style.objectFit = 'contain';
+            // Show screen share container and clear previous content
+            container.style.display = 'flex';
+            container.innerHTML = '';
+        } else {
+            videoWrapper.style.aspectRatio = '16/9';
+            video.style.objectFit = 'cover';
+            // Only set background color if there are video tracks
+            if (hasVideoTrack) {
+                videoWrapper.style.backgroundColor = '#000';
+            }
+        }
 
-    videoWrapper.appendChild(video);
-    videoWrapper.appendChild(indicator);
+        // Add stream type indicator
+        const streamType = isScreenShare ? 'Screen Share' : (hasVideoTrack ? 'Camera' : 'Audio Only');
+        const indicator = document.createElement('div');
+        indicator.style.position = 'absolute';
+        indicator.style.top = '8px';
+        indicator.style.left = '8px';
+        indicator.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+        indicator.style.color = 'white';
+        indicator.style.padding = '4px 8px';
+        indicator.style.borderRadius = '4px';
+        indicator.style.fontSize = '12px';
+        indicator.textContent = streamType;
 
-    video.addEventListener('loadedmetadata', () => {
-        video.play().catch(err => {
-            console.error('Error playing video:', err);
-            setTimeout(() => video.play().catch(console.error), 1000);
+        videoWrapper.appendChild(video);
+        videoWrapper.appendChild(indicator);
+
+        video.addEventListener('loadedmetadata', () => {
+            video.play().catch(err => {
+                console.error('Error playing video:', err);
+                setTimeout(() => video.play().catch(console.error), 1000);
+            });
         });
-    });
 
-    container.appendChild(videoWrapper);
-    updateGridLayout();
+        container.appendChild(videoWrapper);
+        updateGridLayout();
+    }
 };
 
 const updateGridLayout = () => {
@@ -289,44 +301,51 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
     console.log('Handling remote stream for peer:', peerId, stream.getTracks());
     
     try {
-        // Create and add new video element
-        if (isScreenShare) {
-            // Create container for screen share
-            const screenContainer = document.createElement('div');
-            screenContainer.className = 'screen-share-container';
-            screenContainer.setAttribute('data-peer', peerId);
-            screenContainer.style.position = 'absolute';
-            screenContainer.style.top = '16px';
-            screenContainer.style.right = '16px';
-            screenContainer.style.width = '25%';
-            screenContainer.style.minWidth = '320px';
-            screenContainer.style.height = 'auto';
-            screenContainer.style.zIndex = '1000';
-            screenContainer.style.borderRadius = '12px';
-            screenContainer.style.overflow = 'hidden';
-            screenContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-            screenContainer.style.backgroundColor = '#000';
+        // Check if stream has video tracks
+        const hasVideoTrack = stream.getVideoTracks().length > 0;
+        
+        // Only create video container if there's a video track or it's a screen share
+        if (hasVideoTrack || isScreenShare) {
+            // Create and add new video element
+            if (isScreenShare) {
+                // Create container for screen share
+                const screenContainer = document.createElement('div');
+                screenContainer.className = 'screen-share-container';
+                screenContainer.setAttribute('data-peer', peerId);
+                screenContainer.style.position = 'absolute';
+                screenContainer.style.top = '16px';
+                screenContainer.style.right = '16px';
+                screenContainer.style.width = '25%';
+                screenContainer.style.minWidth = '320px';
+                screenContainer.style.height = 'auto';
+                screenContainer.style.zIndex = '1000';
+                screenContainer.style.borderRadius = '12px';
+                screenContainer.style.overflow = 'hidden';
+                screenContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+                screenContainer.style.backgroundColor = '#000';
 
-            const screenVideo = createVideo(stream, false, true);
-            screenVideo.style.width = '100%';
-            screenVideo.style.height = 'auto';
-            screenContainer.appendChild(screenVideo);
+                const screenVideo = createVideo(stream, false, true);
+                screenVideo.style.width = '100%';
+                screenVideo.style.height = 'auto';
+                screenContainer.appendChild(screenVideo);
 
-            // Add the screen container to the video grid parent
-            const videoGrid = document.getElementById('video-grid');
-            if (videoGrid && videoGrid.parentNode) {
-                videoGrid.parentNode.appendChild(screenContainer);
+                // Add the screen container to the video grid parent
+                const videoGrid = document.getElementById('video-grid');
+                if (videoGrid && videoGrid.parentNode) {
+                    videoGrid.parentNode.appendChild(screenContainer);
+                }
+            } else {
+                // Handle regular video stream
+                const remoteVideo = createVideo(stream, false);
+                addVideoStream(remoteVideo, stream);
             }
-        } else {
-            // Handle regular video stream
-            const remoteVideo = createVideo(stream, false);
-            addVideoStream(remoteVideo, stream);
         }
 
         // Store peer information
         peers.set(peerId, {
             stream,
-            isScreenShare
+            isScreenShare,
+            hasVideo: hasVideoTrack
         });
 
         // Monitor remote stream tracks
