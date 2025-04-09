@@ -275,7 +275,7 @@ const updateGridLayout = () => {
 
     // Update camera grid layout
     const cameras = Array.from(cameraGrid.children);
-    const columns = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(cameras.length))));
+    const columns = cameras.length === 1 ? 1 : Math.min(4, Math.max(2, Math.ceil(Math.sqrt(cameras.length))));
     
     cameraGrid.style.display = 'grid';
     cameraGrid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
@@ -283,7 +283,7 @@ const updateGridLayout = () => {
     
     // Update all video containers
     cameras.forEach(container => {
-        container.style.aspectRatio = '16/9';
+        container.style.aspectRatio = cameras.length === 1 ? '16/9' : '9/16';
         container.style.backgroundColor = '#000';
         container.style.borderRadius = '12px';
         container.style.overflow = 'hidden';
