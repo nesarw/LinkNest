@@ -208,6 +208,34 @@ const setupVideoGrid = () => {
     videoGrid = cameraGrid;
 };
 
+const createFullscreenButton = (container) => {
+    const button = document.createElement('button');
+    button.innerHTML = '⛶'; // Unicode fullscreen icon
+    button.style.position = 'absolute';
+    button.style.bottom = '8px';
+    button.style.right = '8px';
+    button.style.zIndex = '10';
+    button.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+    button.style.color = 'white';
+    button.style.border = 'none';
+    button.style.borderRadius = '4px';
+    button.style.padding = '4px 8px';
+    button.style.cursor = 'pointer';
+    button.style.fontSize = '16px';
+    
+    return button;
+};
+
+const handleFullscreenToggle = (container) => {
+    if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+    } else {
+        document.exitFullscreen();
+    }
+};
+
 const addVideoStream = (video, stream) => {
     if (!videoGrid) {
         setupVideoGrid();
@@ -264,8 +292,13 @@ const addVideoStream = (video, stream) => {
         indicator.style.fontSize = '12px';
         indicator.textContent = streamType;
 
+        // Add fullscreen button
+        const fullscreenButton = createFullscreenButton(videoWrapper);
+        fullscreenButton.onclick = () => handleFullscreenToggle(videoWrapper);
+
         videoWrapper.appendChild(video);
         videoWrapper.appendChild(indicator);
+        videoWrapper.appendChild(fullscreenButton);
 
         video.addEventListener('loadedmetadata', () => {
             video.play().catch(err => {
