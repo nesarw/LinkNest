@@ -78,7 +78,7 @@ const Join = () => {
   };
 
   return (
-    <Container maxWidth="sm">
+    <Container maxWidth={false} disableGutters>
       <Box sx={{
         width: "100%",
         minHeight: '100vh',
@@ -87,6 +87,9 @@ const Join = () => {
         alignItems: 'center',
         justifyContent: 'center',
         px: { xs: 2, sm: 0 },
+        backgroundImage: 'url(/assets/join.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
       }}>
         <Card sx={{
           display: 'flex',

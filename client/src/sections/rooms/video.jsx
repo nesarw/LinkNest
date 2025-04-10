@@ -255,15 +255,27 @@ const Video = () => {
         backgroundColor: 'black',
         boxShadow: '0 2px 2px rgba(0,0,0,0.15)',
       }}>
-        <Stack direction='row' spacing={2} alignItems='center' justifyContent='center'>
+        <Stack direction='row' spacing={1} alignItems='center' justifyContent='center'>
           <IconButton 
-            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            sx={{ 
+              backgroundColor: 'white', 
+              borderRadius: '50%', 
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
+              '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } 
+            }}
             onClick={handleMicrophoneToggle}
           >
             {isMicrophoneOn ? <Microphone color="black" /> : <MicrophoneSlash color="black" />}
           </IconButton>
           <IconButton 
-            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            sx={{ 
+              backgroundColor: 'white', 
+              borderRadius: '50%', 
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
+              '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } 
+            }}
             onClick={handleCameraToggle}
           >
             {isCameraOn ? <VideoCamera color="black" /> : <VideoCameraSlash color="black" />}
@@ -273,6 +285,8 @@ const Video = () => {
             sx={{
               backgroundColor: isScreenOn ? 'primary.main' : 'white',
               borderRadius: '50%',
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
               '&:hover': {
                 backgroundColor: isScreenOn ? 'primary.dark' : 'rgba(198, 198, 198, 0.86)'
               }
@@ -281,25 +295,49 @@ const Video = () => {
             {isScreenOn ? <MonitorPlay color="white" size={24} /> : <Monitor color="black" size={24} />}
           </IconButton>
           <IconButton 
-            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            sx={{ 
+              backgroundColor: 'white', 
+              borderRadius: '50%', 
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
+              '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } 
+            }}
             onClick={handleParticipantsToggle}
           >
             <Users color="black" />
           </IconButton>
           <IconButton 
-            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            sx={{ 
+              backgroundColor: 'white', 
+              borderRadius: '50%', 
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
+              '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } 
+            }}
             onClick={handleChatsToggle}
           >
             <Chat color="black" />
           </IconButton>
           <IconButton 
-            sx={{ backgroundColor: 'white', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } }}
+            sx={{ 
+              backgroundColor: 'white', 
+              borderRadius: '50%', 
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
+              '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } 
+            }}
             onClick={handleLabelToggle}
           >
             <Info color="black" />
           </IconButton>
           <IconButton 
-            sx={{ backgroundColor: 'red', borderRadius: '50%', '&:hover': { backgroundColor: 'rgba(255, 0, 0, 0.86)' } }}
+            sx={{ 
+              backgroundColor: 'red', 
+              borderRadius: '50%', 
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
+              '&:hover': { backgroundColor: 'rgba(255, 0, 0, 0.86)' } 
+            }}
             onClick={handleDisconnect}
           >
             <PhoneDisconnect color="white" />

@@ -6,8 +6,8 @@ const Label = ({ roomId }) => {
     <Box
       sx={{
         position: "absolute",
-        bottom: 20,
-        right: 20,
+        bottom: { xs: 83, sm: 20 },
+        right: { xs: 70, sm: 20 },
         backgroundColor: "white",
         border: "2px solid black",
         borderRadius: "8px",

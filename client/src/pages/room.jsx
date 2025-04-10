@@ -27,20 +27,23 @@ const Room = () => {
         alignItems="center"
         sx={{ 
           position: 'fixed', 
-          top: '8px',
-          left: '1%',
-          width: '98%',
-          height: 'calc(100vh - 16px)',
-          backgroundColor: 'grey',
-          borderRadius: '20px',
+          top: '0px',
+          left: '0%',
+          width: '100%',
+          height: 'calc(100vh - 0px)',
+          backgroundImage: 'url(/assets/room.jpg)', // Updated path to the image in the public directory
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          borderRadius: '2px',
           overflow: 'hidden'
         }}
       >
         {/* Video Stream Grid */}
         <Box sx={{ 
           width: '100%',
-          maxWidth: '1200px',
+          maxWidth: '1800px',
           flex: 1,
+          
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -68,6 +71,7 @@ const Room = () => {
                 objectFit: 'cover',
                 borderRadius: '12px',
                 backgroundColor: '#000'
+                
               }
             }
           }}></Box>
@@ -83,9 +87,15 @@ const Room = () => {
           justifyContent: 'center',
           position: 'relative',
           px: { xs: 1, sm: 2, md: 3 },
-          pb: 2
+          pb: 2,
+          '& .video-controls': {
+            width: { xs: '90%', sm: 'auto' },
+            height: { xs: 'auto', sm: 'auto' },
+          }
         }}>
-          <Video />
+          <Box className="video-controls">
+            <Video />
+          </Box>
         </Box>
         <Label roomId={roomId} />
         {showOverlay && <Overlay/>}

@@ -15,16 +15,21 @@ const Intro = () => {
     navigate('/join-room');
   };
 
-  return <Container>
+  return <Container disableGutters maxWidth={false}>
     <Box sx={{
-      width: "100%", 
+      width: "100vw", // Ensure full viewport width
       height: '100vh', 
       display: 'flex', 
       flexDirection: 'column', 
-      alignItems: { xs: 'center', sm: 'flex-end' }, // Center on mobile, flex-end on larger screens
+      alignItems: { xs: 'center', sm: 'flex-end' }, // Center on mobile, right align on larger screens
       justifyContent: 'center',
       pl: { xs: 0, sm: 0 }, // Left padding only for mobile
-      pr: { xs: 0, sm: 0 } // Right padding for mobile
+      pr: { xs: 0, sm: 15 }, // Add right padding for larger screens
+      backgroundImage: 'url(/assets/homepage.jpg)', // Updated path to the image in the public directory
+      backgroundSize: 'cover',
+      backgroundPosition: 'center', // Align background image to the left
+      margin: 0, // Remove any default margin
+      mr: { xs: 0, sm: 0 }, // Add right margin for larger screens
     }}>
       <Card sx={{
         display: 'flex',
