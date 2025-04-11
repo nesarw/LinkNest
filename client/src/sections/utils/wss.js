@@ -87,16 +87,19 @@ const peerConnections = {};
 let isInitiator = false;
 const connectedPeers = new Set();
 
-const createPeerConnection = (userID) => {
+const createPeerConnection = (userID, identity) => {
     if (peerConnections[userID]) {
         peerConnections[userID].close();
         delete peerConnections[userID];
         removeRemoteStream(userID);
     }
 
-    console.log('Creating peer connection for:', userID);
+    console.log('Creating peer connection for:', userID, 'with identity:', identity);
     const peerConnection = new RTCPeerConnection(getIceServers());
     peerConnections[userID] = peerConnection;
+
+    // Store the identity with the peer connection
+    peerConnection.identity = identity;
 
     // Add local stream tracks
     const localStream = getLocalStream();
@@ -275,7 +278,7 @@ export const connectwithSocketIOServer = () => {
         
         if (isInitiator && !connectedPeers.has(userID)) {
             try {
-                const peerConnection = createPeerConnection(userID);
+                const peerConnection = createPeerConnection(userID, identity);
                 
                 const offer = await peerConnection.createOffer({
                     offerToReceiveAudio: true,
@@ -288,6 +291,16 @@ export const connectwithSocketIOServer = () => {
             } catch (err) {
                 console.error('Error creating offer:', err);
             }
+        } else if (!isInitiator) {
+            // For non-initiators, create peer connection for existing users
+            try {
+                if (!peerConnections[userID]) {
+                    const peerConnection = createPeerConnection(userID, identity);
+                    console.log('Created peer connection for existing user:', userID, 'with identity:', identity);
+                }
+            } catch (err) {
+                console.error('Error creating peer connection for existing user:', err);
+            }
         }
     });
 
@@ -298,7 +311,7 @@ export const connectwithSocketIOServer = () => {
         try {
             let peerConnection = peerConnections[from];
             if (!peerConnection) {
-                peerConnection = createPeerConnection(from);
+                peerConnection = createPeerConnection(from, peerConnections[from]?.identity);
             }
             
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
@@ -309,7 +322,7 @@ export const connectwithSocketIOServer = () => {
             });
             await peerConnection.setLocalDescription(answer);
             
-            console.log('Sending answer to:', from);
+            console.log('Sending answer to:', from, isScreenShare ? '(screen share)' : '(camera)');
             socket.emit('answer', { 
                 target: from, 
                 answer,
@@ -321,8 +334,8 @@ export const connectwithSocketIOServer = () => {
     });
 
     socket.on('answer', async (data) => {
-        const { answer, from } = data;
-        console.log('Received answer from:', from);
+        const { answer, from, isScreenShare } = data;
+        console.log('Received answer from:', from, isScreenShare ? '(screen share)' : '(camera)');
         try {
             const peerConnection = peerConnections[from];
             if (peerConnection && peerConnection.signalingState !== 'stable') {

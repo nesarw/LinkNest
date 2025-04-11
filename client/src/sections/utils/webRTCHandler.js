@@ -82,7 +82,7 @@ export const localPreviewInitConnection = async (isRoomHost, identity, roomId = 
 
         setupVideoGrid();
         const localVideo = createVideo(localStream, true);
-        addVideoStream(localVideo, localStream);
+        addVideoStream(localVideo, localStream, identity);
 
         // Monitor track status
         localStream.getTracks().forEach(track => {
@@ -236,7 +236,7 @@ const handleFullscreenToggle = (container) => {
     }
 };
 
-const addVideoStream = (video, stream) => {
+const addVideoStream = (video, stream, identity = null) => {
     if (!videoGrid) {
         setupVideoGrid();
     }
@@ -279,8 +279,7 @@ const addVideoStream = (video, stream) => {
             video.style.objectFit = 'cover';
         }
 
-        // Add stream type indicator
-        const streamType = isScreenShare ? 'Screen Share' : (hasVideoTrack ? 'Camera' : 'Audio Only');
+        // Add user identity indicator
         const indicator = document.createElement('div');
         indicator.style.position = 'absolute';
         indicator.style.top = '8px';
@@ -290,7 +289,7 @@ const addVideoStream = (video, stream) => {
         indicator.style.padding = '4px 8px';
         indicator.style.borderRadius = '4px';
         indicator.style.fontSize = '12px';
-        indicator.textContent = streamType;
+        indicator.textContent = identity || 'Anonymous';
 
         // Add fullscreen button
         const fullscreenButton = createFullscreenButton(videoWrapper);
@@ -393,14 +392,33 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                 // Add the screen container to the screen share container
                 const screenShareContainer = document.getElementById('screen-share-container');
                 if (screenShareContainer) {
+                    // Get the peer's identity from the peer connection
+                    const peerConnection = wss.getPeerConnections()[peerId];
+                    const peerIdentity = peerConnection?.identity || 'Anonymous';
+                    // Add screen share video with identity
                     screenShareContainer.style.display = 'flex';
                     screenShareContainer.innerHTML = '';
                     screenShareContainer.appendChild(screenContainer);
+                    // Add identity label for screen share
+                    const identityLabel = document.createElement('div');
+                    identityLabel.style.position = 'absolute';
+                    identityLabel.style.top = '8px';
+                    identityLabel.style.left = '8px';
+                    identityLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+                    identityLabel.style.color = 'white';
+                    identityLabel.style.padding = '4px 8px';
+                    identityLabel.style.borderRadius = '4px';
+                    identityLabel.style.fontSize = '12px';
+                    identityLabel.textContent = `${peerIdentity}'s Screen Share`;
+                    screenContainer.appendChild(identityLabel);
                 }
             } else {
                 // Handle regular video stream
                 const remoteVideo = createVideo(stream, false);
-                addVideoStream(remoteVideo, stream);
+                // Get the peer's identity from the peer connection
+                const peerConnection = wss.getPeerConnections()[peerId];
+                const peerIdentity = peerConnection?.identity || 'Anonymous';
+                addVideoStream(remoteVideo, stream, peerIdentity);
             }
         }
 
@@ -408,7 +426,8 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
         peers.set(peerId, {
             stream,
             isScreenShare,
-            hasVideo: hasVideoTrack
+            hasVideo: hasVideoTrack,
+            identity: wss.getPeerConnections()[peerId]?.identity || 'Anonymous' // Store the identity from peer connection
         });
 
         // Monitor remote stream tracks
@@ -485,7 +504,10 @@ export const startScreenSharing = async () => {
 
         // Create video element for local preview
         const screenVideo = createVideo(screenStream, false, true);
-        addVideoStream(screenVideo, screenStream);
+        // Get the local user's identity from the local stream's video element
+        const localVideo = document.querySelector('video[data-local="true"]');
+        const localIdentity = localVideo?.parentElement?.querySelector('div')?.textContent || 'Anonymous';
+        addVideoStream(screenVideo, screenStream, `${localIdentity}'s Screen Share`);
 
         // Handle screen sharing stop from browser
         screenStream.getVideoTracks()[0].onended = () => {

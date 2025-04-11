@@ -86,17 +86,20 @@ io.on('connection', (socket) => {
 
     // Handle WebRTC signaling
     socket.on('offer', (data) => {
-        const { target, offer } = data;
-        socket.to(target).emit('offer', { offer, from: socket.id });
+        const { target, offer, isScreenShare } = data;
+        console.log(`Received offer from ${socket.id} to ${target}`, isScreenShare ? '(screen share)' : '(camera)');
+        socket.to(target).emit('offer', { offer, from: socket.id, isScreenShare });
     });
 
     socket.on('answer', (data) => {
-        const { target, answer } = data;
-        socket.to(target).emit('answer', { answer, from: socket.id });
+        const { target, answer, isScreenShare } = data;
+        console.log(`Received answer from ${socket.id} to ${target}`, isScreenShare ? '(screen share)' : '(camera)');
+        socket.to(target).emit('answer', { answer, from: socket.id, isScreenShare });
     });
 
     socket.on('ice-candidate', (data) => {
         const { target, candidate } = data;
+        console.log(`Received ICE candidate from ${socket.id} to ${target}`);
         socket.to(target).emit('ice-candidate', { candidate, from: socket.id });
     });
 
@@ -118,9 +121,16 @@ io.on('connection', (socket) => {
                 // Notify existing participants about the new user
                 socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity: data.identity });
                 
-                // If there are existing participants, notify the new user
+                // If there are existing participants, notify the new user with their identities
                 if (room.participants.length > 1) {
-                    socket.emit('existing-participants', room.participants.filter(p => p.socketID !== socket.id));
+                    const existingParticipants = room.participants.filter(p => p.socketID !== socket.id);
+                    // Send each existing participant's identity to the new user
+                    existingParticipants.forEach(participant => {
+                        socket.emit('user-joined', { 
+                            userID: participant.socketID, 
+                            identity: participant.identity 
+                        });
+                    });
                 }
             } else {
                 socket.emit('error', { message: 'Room is full' });
