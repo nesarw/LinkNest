@@ -116,7 +116,7 @@ const createPeerConnection = (userID, identity) => {
     if (localStream) {
         console.log('Adding local tracks to peer connection');
         localStream.getTracks().forEach(track => {
-            console.log('Adding track to peer connection:', track.kind);
+            console.log('Adding track to peer connection:', track.kind, track.label);
             const sender = peerConnection.addTrack(track, localStream);
             
             // Set encoding parameters for better quality
@@ -137,7 +137,7 @@ const createPeerConnection = (userID, identity) => {
         console.log('Adding screen sharing tracks to peer connection');
         screenStream.getTracks().forEach(track => {
             track.contentHint = 'screen';
-            console.log('Adding screen track to peer connection:', track.kind);
+            console.log('Adding screen track to peer connection:', track.kind, track.label);
             const sender = peerConnection.addTrack(track, screenStream);
             if (sender) {
                 const params = sender.getParameters();
@@ -153,7 +153,7 @@ const createPeerConnection = (userID, identity) => {
 
     // Handle remote tracks
     peerConnection.ontrack = (event) => {
-        console.log('Received remote track:', event.track.kind, 'contentHint:', event.track.contentHint);
+        console.log('Received remote track:', event.track.kind, 'contentHint:', event.track.contentHint, 'label:', event.track.label);
         const [remoteStream] = event.streams;
         
         if (remoteStream) {
@@ -171,6 +171,12 @@ const createPeerConnection = (userID, identity) => {
             
             // Create a new MediaStream for this track
             const streamToHandle = new MediaStream([event.track]);
+            
+            // Ensure audio tracks are enabled
+            streamToHandle.getAudioTracks().forEach(track => {
+                track.enabled = true;
+                console.log('Remote audio track enabled:', track.label);
+            });
             
             // Handle the stream based on its type
             handleRemoteStream(streamToHandle, userID, isScreenShare);
@@ -210,18 +216,15 @@ const createPeerConnection = (userID, identity) => {
                 }
             };
             
-            // Only add mute/unmute listeners for non-screen sharing tracks
-            if (!isScreenShare) {
-                event.track.onmute = () => {
-                    console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
-                };
-                event.track.onunmute = () => {
-                    console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
-                };
-            } else {
-                // For screen sharing tracks, ensure they stay unmuted
+            // Add mute/unmute listeners for all tracks
+            event.track.onmute = () => {
+                console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
+            };
+            event.track.onunmute = () => {
+                console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
+                // Ensure track is enabled when unmuted
                 event.track.enabled = true;
-            }
+            };
         }
     };
 

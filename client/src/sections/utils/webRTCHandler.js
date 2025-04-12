@@ -7,8 +7,7 @@ const constraints = {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        latency: 0.01,  // Minimize audio latency
-        sampleSize: 16  // Standard sample size for good quality/performance balance
+        sampleSize: 16
     },
     video: {
         width: { min: 320, ideal: 640, max: 1280 },  // Reduced resolution for better performance
@@ -57,24 +56,21 @@ export const localPreviewInitConnection = async (isRoomHost, identity, roomId = 
         if (!localStream) {
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
             
+            // Ensure audio tracks are enabled
+            localStream.getAudioTracks().forEach(track => {
+                track.enabled = true;
+                console.log('Local audio track enabled:', track.label);
+            });
+
             // Optimize video encoding
             localStream.getVideoTracks().forEach(track => {
                 const capabilities = track.getCapabilities();
                 if (capabilities.bitrate) {
                     track.applyConstraints({
                         ...constraints.video,
-                        bitrate: 500000  // 500kbps for better performance
+                        bitrate: 500000
                     }).catch(console.error);
                 }
-            });
-
-            // Optimize audio encoding
-            localStream.getAudioTracks().forEach(track => {
-                track.applyConstraints({
-                    ...constraints.audio,
-                    echoCancellation: true,
-                    noiseSuppression: true
-                }).catch(console.error);
             });
         }
         
