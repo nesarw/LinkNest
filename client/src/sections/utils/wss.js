@@ -1,7 +1,15 @@
 import io from 'socket.io-client';
 import { store } from '../../redux/store';
 import { updateRoomID } from '../../redux/slices/app';
-import { handleRemoteStream, removeRemoteStream, getLocalStream, getScreenStream } from './webRTCHandler';
+import { 
+    handleRemoteStream, 
+    removeRemoteStream, 
+    getLocalStream, 
+    getScreenStream,
+    getPeerInfo,
+    updatePeerInfo,
+    updateGridLayout
+} from './webRTCHandler';
 
 // Determine server URL based on environment
 const getServerUrl = () => {
@@ -175,24 +183,45 @@ const createPeerConnection = (userID, identity) => {
             event.track.onended = () => {
                 console.log(`Remote ${event.track.kind} track ended for peer:`, userID);
                 if (isScreenShare) {
+                    console.log(`Screen share track ended for peer: ${userID}, cleaning up UI`);
+                    
+                    // Remove the screen container
                     const screenContainer = document.querySelector(`.screen-share-container[data-peer="${userID}"]`);
                     if (screenContainer) {
                         screenContainer.remove();
                     }
+                    
+                    // Hide the screen share container and update layout
                     const screenShareContainer = document.getElementById('screen-share-container');
                     if (screenShareContainer) {
                         screenShareContainer.style.display = 'none';
                         screenShareContainer.innerHTML = '';
                     }
+                    
+                    // Update peer information
+                    const peer = getPeerInfo(userID);
+                    if (peer) {
+                        peer.isScreenShare = false;
+                        updatePeerInfo(userID, peer);
+                    }
+                    
+                    // Update the grid layout
                     updateGridLayout();
                 }
             };
-            event.track.onmute = () => {
-                console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
-            };
-            event.track.onunmute = () => {
-                console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
-            };
+            
+            // Only add mute/unmute listeners for non-screen sharing tracks
+            if (!isScreenShare) {
+                event.track.onmute = () => {
+                    console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
+                };
+                event.track.onunmute = () => {
+                    console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
+                };
+            } else {
+                // For screen sharing tracks, ensure they stay unmuted
+                event.track.enabled = true;
+            }
         }
     };
 
@@ -327,6 +356,37 @@ export const connectwithSocketIOServer = () => {
             // Store the screen share metadata with the peer connection
             peerConnection.lastOffer = { isScreenShare };
             
+            // If this is an offer indicating screen sharing has stopped, clean up the UI
+            if (isScreenShare === false && peerConnection.lastScreenShareState === true) {
+                console.log(`Screen sharing stopped for peer: ${from}, cleaning up UI`);
+                
+                // Remove the screen container
+                const screenContainer = document.querySelector(`.screen-share-container[data-peer="${from}"]`);
+                if (screenContainer) {
+                    screenContainer.remove();
+                }
+                
+                // Hide the screen share container and update layout
+                const screenShareContainer = document.getElementById('screen-share-container');
+                if (screenShareContainer) {
+                    screenShareContainer.style.display = 'none';
+                    screenShareContainer.innerHTML = '';
+                }
+                
+                // Update peer information
+                const peer = getPeerInfo(from);
+                if (peer) {
+                    peer.isScreenShare = false;
+                    updatePeerInfo(from, peer);
+                }
+                
+                // Update the grid layout
+                updateGridLayout();
+            }
+            
+            // Update the last screen share state
+            peerConnection.lastScreenShareState = isScreenShare;
+            
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
             
             const answer = await peerConnection.createAnswer({
@@ -435,6 +495,7 @@ export const updatePeerConnections = (stream, isScreenShare = false) => {
         stream.getTracks().forEach(track => {
             if (isScreenShare) {
                 track.contentHint = 'screen';
+                track.enabled = true; // Ensure screen sharing tracks are enabled
             }
             
             const sender = senders.find(s => 

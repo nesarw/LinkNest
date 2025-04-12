@@ -424,6 +424,13 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                    contentHint.includes('display');
         });
         
+        // Ensure screen sharing tracks are enabled
+        if (isScreenStream) {
+            stream.getTracks().forEach(track => {
+                track.enabled = true;
+            });
+        }
+        
         // Only create video container if there's a video track
         if (hasVideoTrack) {
             // Create and add new video element
@@ -509,6 +516,8 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
             track.onended = () => {
                 console.log(`Remote ${track.kind} track ended for peer:`, peerId);
                 if (isScreenStream) {
+                    console.log(`Screen share track ended for peer: ${peerId}, cleaning up UI`);
+                    
                     // Remove the screen container
                     const screenContainer = document.querySelector(`.screen-share-container[data-peer="${peerId}"]`);
                     if (screenContainer) {
@@ -588,9 +597,10 @@ export const startScreenSharing = async () => {
             }
         });
 
-        // Set content hint for screen sharing
+        // Set content hint for screen sharing and ensure tracks are enabled
         screenStream.getVideoTracks().forEach(track => {
             track.contentHint = 'screen';
+            track.enabled = true; // Ensure track is enabled
         });
 
         // Create video element for local preview
@@ -654,6 +664,8 @@ export const startScreenSharing = async () => {
 
 export const stopScreenSharing = async () => {
     if (screenStream) {
+        console.log('Stopping screen sharing...');
+        
         // Stop all tracks
         screenStream.getTracks().forEach(track => {
             track.stop();
@@ -687,7 +699,8 @@ export const stopScreenSharing = async () => {
                 .then(() => {
                     wss.socket.emit('offer', {
                         target: userId,
-                        offer: peerConnection.localDescription
+                        offer: peerConnection.localDescription,
+                        isScreenShare: false // Explicitly indicate screen sharing has stopped
                     });
                 })
                 .catch(console.error);
@@ -698,3 +711,13 @@ export const stopScreenSharing = async () => {
     }
     return false;
 };
+
+export const getPeerInfo = (peerId) => {
+    return peers.get(peerId);
+};
+
+export const updatePeerInfo = (peerId, peerInfo) => {
+    peers.set(peerId, peerInfo);
+};
+
+export { updateGridLayout };
