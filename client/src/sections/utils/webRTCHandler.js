@@ -128,12 +128,19 @@ const refreshLocalStream = async () => {
 };
 
 const createVideo = (stream, isLocal, isScreen = false) => {
+    console.log('Creating video element:', {
+        isLocal,
+        isScreen,
+        hasVideoTracks: stream.getVideoTracks().length > 0
+    });
+    
     const video = document.createElement('video');
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = isScreen ? 'contain' : 'cover';
     video.style.borderRadius = '12px';
-    video.style.transform = isLocal ? 'scaleX(-1)' : 'none';
+    // Only apply mirroring for local camera feeds, not for screen shares
+    video.style.transform = (isLocal && !isScreen) ? 'scaleX(-1)' : 'none';
     
     // Only set background color if there are video tracks
     if (stream.getVideoTracks().length > 0) {
@@ -151,6 +158,11 @@ const createVideo = (stream, isLocal, isScreen = false) => {
     if (isScreen) {
         video.setAttribute('data-screen', 'true');
     }
+
+    console.log('Video element attributes:', {
+        hasDataLocal: video.hasAttribute('data-local'),
+        hasDataScreen: video.hasAttribute('data-screen')
+    });
 
     return video;
 };
@@ -247,6 +259,14 @@ const addVideoStream = (video, stream, identity = null) => {
         document.getElementById('screen-share-container') : 
         document.getElementById('video-grid');
 
+    console.log('Adding video stream:', {
+        isScreenShare,
+        hasVideoTrack,
+        identity,
+        isLocal: video.hasAttribute('data-local'),
+        containerId: container?.id
+    });
+
     if (!container) return;
 
     // Only create video wrapper if there's a video track or it's a screen share
@@ -293,6 +313,12 @@ const addVideoStream = (video, stream, identity = null) => {
         if (isScreenShare) {
             // For screen share, show both sharing and receiving labels
             const isLocal = video.hasAttribute('data-local');
+            console.log('Screen share label creation:', {
+                isLocal,
+                identity,
+                containerId: container.id
+            });
+            
             if (isLocal) {
                 indicator.textContent = `${identity} (Sharing Screen)`;
             } else {
@@ -568,7 +594,7 @@ export const startScreenSharing = async () => {
         });
 
         // Create video element for local preview
-        const screenVideo = createVideo(screenStream, false, true);
+        const screenVideo = createVideo(screenStream, true, true);  // Changed false to true for isLocal
         // Get the local user's identity from the local stream's video element
         const localVideo = document.querySelector('video[data-local="true"]');
         const localIdentity = localVideo?.parentElement?.querySelector('div')?.textContent || 'Anonymous';
