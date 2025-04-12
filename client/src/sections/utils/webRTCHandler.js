@@ -17,7 +17,7 @@ const constraints = {
         encodings: [
             {
                 maxBitrate: 500000,  // 500kbps for reduced bandwidth usage
-                scaleResolutionDownBy: 1.0
+                scaleResolutionDownBy: 1.0 
             }
         ]
     }
@@ -289,7 +289,30 @@ const addVideoStream = (video, stream, identity = null) => {
         indicator.style.padding = '4px 8px';
         indicator.style.borderRadius = '4px';
         indicator.style.fontSize = '12px';
-        indicator.textContent = identity || 'Anonymous';
+        
+        if (isScreenShare) {
+            // For screen share, show both sharing and receiving labels
+            const isLocal = video.hasAttribute('data-local');
+            if (isLocal) {
+                indicator.textContent = `${identity} (Sharing Screen)`;
+            } else {
+                indicator.textContent = `${identity} (Shared Screen)`;
+                // Add receiving label
+                const receivingLabel = document.createElement('div');
+                receivingLabel.style.position = 'absolute';
+                receivingLabel.style.top = '8px';
+                receivingLabel.style.right = '8px';
+                receivingLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+                receivingLabel.style.color = 'white';
+                receivingLabel.style.padding = '4px 8px';
+                receivingLabel.style.borderRadius = '4px';
+                receivingLabel.style.fontSize = '12px';
+                receivingLabel.textContent = 'Receiving Screen Share';
+                videoWrapper.appendChild(receivingLabel);
+            }
+        } else {
+            indicator.textContent = identity || 'Anonymous';
+        }
 
         // Add fullscreen button
         const fullscreenButton = createFullscreenButton(videoWrapper);
@@ -364,10 +387,21 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
         // Check if stream has video tracks
         const hasVideoTrack = stream.getVideoTracks().length > 0;
         
-        // Only create video container if there's a video track or it's a screen share
-        if (hasVideoTrack || isScreenShare) {
+        // Determine if this is a screen share stream by checking track labels and content hints
+        const isScreenStream = isScreenShare || stream.getVideoTracks().some(track => {
+            const label = track.label.toLowerCase();
+            const contentHint = track.contentHint?.toLowerCase() || '';
+            return label.includes('screen') || 
+                   label.includes('display') || 
+                   label.includes('window') ||
+                   contentHint.includes('screen') ||
+                   contentHint.includes('display');
+        });
+        
+        // Only create video container if there's a video track
+        if (hasVideoTrack) {
             // Create and add new video element
-            if (isScreenShare) {
+            if (isScreenStream) {
                 // Create container for screen share
                 const screenContainer = document.createElement('div');
                 screenContainer.className = 'screen-share-container';
@@ -411,6 +445,19 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                     identityLabel.style.fontSize = '12px';
                     identityLabel.textContent = `${peerIdentity}'s Screen Share`;
                     screenContainer.appendChild(identityLabel);
+
+                    // Add receiving label
+                    const receivingLabel = document.createElement('div');
+                    receivingLabel.style.position = 'absolute';
+                    receivingLabel.style.top = '8px';
+                    receivingLabel.style.right = '8px';
+                    receivingLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+                    receivingLabel.style.color = 'white';
+                    receivingLabel.style.padding = '4px 8px';
+                    receivingLabel.style.borderRadius = '4px';
+                    receivingLabel.style.fontSize = '12px';
+                    receivingLabel.textContent = 'Receiving Screen Share';
+                    screenContainer.appendChild(receivingLabel);
                 }
             } else {
                 // Handle regular video stream
@@ -425,9 +472,9 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
         // Store peer information
         peers.set(peerId, {
             stream,
-            isScreenShare,
+            isScreenShare: isScreenStream,
             hasVideo: hasVideoTrack,
-            identity: wss.getPeerConnections()[peerId]?.identity || 'Anonymous' // Store the identity from peer connection
+            identity: wss.getPeerConnections()[peerId]?.identity || 'Anonymous'
         });
 
         // Monitor remote stream tracks
@@ -435,11 +482,29 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
             console.log(`Remote ${track.kind} track added for peer:`, peerId);
             track.onended = () => {
                 console.log(`Remote ${track.kind} track ended for peer:`, peerId);
-                if (isScreenShare) {
+                if (isScreenStream) {
+                    // Remove the screen container
                     const screenContainer = document.querySelector(`.screen-share-container[data-peer="${peerId}"]`);
                     if (screenContainer) {
                         screenContainer.remove();
                     }
+                    
+                    // Hide the screen share container and update layout
+                    const screenShareContainer = document.getElementById('screen-share-container');
+                    if (screenShareContainer) {
+                        screenShareContainer.style.display = 'none';
+                        screenShareContainer.innerHTML = '';
+                    }
+                    
+                    // Remove peer's screen share information
+                    const peer = peers.get(peerId);
+                    if (peer) {
+                        peer.isScreenShare = false;
+                        peers.set(peerId, peer);
+                    }
+                    
+                    // Update the grid layout
+                    updateGridLayout();
                 }
             };
         });

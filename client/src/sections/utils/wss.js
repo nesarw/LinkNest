@@ -153,7 +153,11 @@ const createPeerConnection = (userID, identity) => {
             const isScreenShare = event.track.contentHint === 'screen' || // Check for screen sharing hint
                                 remoteStream.id.includes('screen') || // Fallback checks
                                 event.track.label.includes('screen') || 
-                                event.track.label.includes('display');
+                                event.track.label.includes('display') ||
+                                event.track.label.includes('share') ||
+                                event.track.label.includes('window') ||
+                                // Check if this track is from a screen share offer
+                                (peerConnection.lastOffer && peerConnection.lastOffer.isScreenShare);
 
             console.log('Processing remote stream for:', userID, isScreenShare ? '(screen)' : '(camera)', 'stream ID:', remoteStream.id);
             
@@ -171,10 +175,16 @@ const createPeerConnection = (userID, identity) => {
             event.track.onended = () => {
                 console.log(`Remote ${event.track.kind} track ended for peer:`, userID);
                 if (isScreenShare) {
-                    const screenContainer = document.getElementById('screen-share-container');
+                    const screenContainer = document.querySelector(`.screen-share-container[data-peer="${userID}"]`);
                     if (screenContainer) {
-                        screenContainer.innerHTML = '';
+                        screenContainer.remove();
                     }
+                    const screenShareContainer = document.getElementById('screen-share-container');
+                    if (screenShareContainer) {
+                        screenShareContainer.style.display = 'none';
+                        screenShareContainer.innerHTML = '';
+                    }
+                    updateGridLayout();
                 }
             };
             event.track.onmute = () => {
@@ -313,6 +323,9 @@ export const connectwithSocketIOServer = () => {
             if (!peerConnection) {
                 peerConnection = createPeerConnection(from, peerConnections[from]?.identity);
             }
+            
+            // Store the screen share metadata with the peer connection
+            peerConnection.lastOffer = { isScreenShare };
             
             await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
             
