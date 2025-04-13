@@ -10,6 +10,7 @@ import {
     updatePeerInfo,
     updateGridLayout
 } from './webRTCHandler';
+import * as webRTCHandler from './webRTCHandler';
 
 // Determine server URL based on environment
 const getServerUrl = () => {
@@ -513,17 +514,19 @@ export const connectwithSocketIOServer = () => {
         console.log('Removing remote stream for disconnected user:', userID);
         removeRemoteStream(userID);
         
-        // Clean up any remaining video elements
+        // Clean up all video elements in the video grid
         const videoGrid = document.getElementById('video-grid');
         if (videoGrid) {
-            const videoWrappers = videoGrid.querySelectorAll('div');
+            // Find all wrappers that belong to the disconnected user
+            const videoWrappers = videoGrid.querySelectorAll(`div[data-peer="${userID}"], div:has(video[data-peer="${userID}"])`);
             videoWrappers.forEach(wrapper => {
-                const video = wrapper.querySelector('video');
-                if (video && video.dataset.peer === userID) {
-                    console.log('Found remaining video element for disconnected user, removing:', userID);
-                    wrapper.remove();
-                }
+                console.log('Removing entire wrapper for disconnected user:', userID);
+                wrapper.remove(); // This removes the wrapper and all its children (video, labels, icons)
             });
+            
+            // Force grid layout update
+            const remainingWrappers = videoGrid.querySelectorAll('div');
+            console.log('Remaining video elements:', remainingWrappers.length);
             updateGridLayout();
         }
         
@@ -532,10 +535,23 @@ export const connectwithSocketIOServer = () => {
         if (screenContainer) {
             console.log('Removing screen share container for disconnected user:', userID);
             screenContainer.remove();
+            
+            // Hide the screen share container if it's empty
+            const screenShareContainer = document.getElementById('screen-share-container');
+            if (screenShareContainer) {
+                const remainingScreens = screenShareContainer.querySelectorAll('.screen-share-container');
+                if (remainingScreens.length === 0) {
+                    console.log('No remaining screen shares, hiding container');
+                    screenShareContainer.style.display = 'none';
+                    screenShareContainer.innerHTML = '';
+                }
+            }
         }
         
-        // Update the grid layout after cleanup
-        updateGridLayout();
+        // Final grid layout update after all cleanups
+        requestAnimationFrame(() => {
+            updateGridLayout();
+        });
     });
 
     socket.on('existing-participants', (participants) => {
@@ -679,13 +695,20 @@ export const leaveRoom = () => {
     if (socket) {
         console.log('Leaving room, cleaning up all connections and UI elements');
         
-        // First, clean up all UI elements for all peers
+        // First, stop screen sharing if active
+        const screenStream = webRTCHandler.getScreenStream();
+        if (screenStream) {
+            console.log('Stopping screen sharing before leaving room');
+            webRTCHandler.stopScreenSharing();
+        }
+        
+        // Clean up all UI elements for all peers
         Object.keys(peerConnections).forEach(userId => {
             console.log('Cleaning up UI elements for peer:', userId);
             removeRemoteStream(userId);
         });
         
-        // Then close all peer connections
+        // Close all peer connections
         Object.values(peerConnections).forEach(connection => {
             connection.close();
         });

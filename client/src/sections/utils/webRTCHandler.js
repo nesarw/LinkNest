@@ -403,38 +403,71 @@ const updateGridLayout = () => {
 };
 
 export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
-    console.log('Handling remote stream for peer:', peerId, stream.getTracks());
+    console.log('Handling remote stream for peer:', peerId, {
+        tracks: stream.getTracks().map(t => ({ kind: t.kind, label: t.label, contentHint: t.contentHint })),
+        isScreenShare
+    });
     
     try {
         // Check if stream has video tracks
         const hasVideoTrack = stream.getVideoTracks().length > 0;
         
-        // Determine if this is a screen share stream by checking track labels and content hints
-        const isScreenStream = isScreenShare || stream.getVideoTracks().some(track => {
-            const label = track.label.toLowerCase();
-            const contentHint = track.contentHint?.toLowerCase() || '';
-            return label.includes('screen') || 
-                   label.includes('display') || 
-                   label.includes('window') ||
-                   contentHint.includes('screen') ||
-                   contentHint.includes('display');
-        });
+        // Get video track for analysis
+        const videoTrack = stream.getVideoTracks()[0];
         
-        // Ensure screen sharing tracks are enabled
+        // Get peer connection to check if this is from a screen share offer
+        const peerConnection = wss.getPeerConnections()[peerId];
+        const isFromScreenShareOffer = peerConnection?.isScreenShareOffer || false;
+        
+        // Enhanced screen share detection - use the same logic for all users
+        const isScreenStream = isScreenShare || isFromScreenShareOffer || (videoTrack && (() => {
+            const label = videoTrack.label.toLowerCase();
+            const contentHint = videoTrack.contentHint?.toLowerCase() || '';
+            
+            // Log detailed track information for debugging
+            console.log('Analyzing video track:', {
+                peerId,
+                label,
+                contentHint,
+                isScreenShare,
+                isFromScreenShareOffer
+            });
+            
+            // Primary check: explicit flags
+            if (isScreenShare || isFromScreenShareOffer) {
+                console.log('Screen share identified by explicit flag');
+                return true;
+            }
+            
+            // Secondary check: content hint
+            if (contentHint === 'screen') {
+                console.log('Screen share identified by content hint');
+                return true;
+            }
+            
+            return false;
+        })());
+
+        // Ensure screen sharing tracks are properly marked
         if (isScreenStream) {
+            console.log('Marking stream as screen share for peer:', peerId);
             stream.getTracks().forEach(track => {
                 track.enabled = true;
+                if (track.kind === 'video') {
+                    track.contentHint = 'screen';
+                }
             });
         }
         
-        // Only create video container if there's a video track
+        // Create video elements based on stream type
         if (hasVideoTrack) {
-            // Create and add new video element
             if (isScreenStream) {
-                // Create container for screen share
+                // Handle screen share stream
+                console.log('Creating screen share container for peer:', peerId);
                 const screenContainer = document.createElement('div');
                 screenContainer.className = 'screen-share-container';
                 screenContainer.setAttribute('data-peer', peerId);
+                screenContainer.setAttribute('data-type', 'screen');
                 screenContainer.style.width = '100%';
                 screenContainer.style.height = '100%';
                 screenContainer.style.position = 'relative';
@@ -446,23 +479,26 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                 screenContainer.style.justifyContent = 'center';
 
                 const screenVideo = createVideo(stream, false, true);
+                screenVideo.setAttribute('data-peer', peerId);
+                screenVideo.setAttribute('data-type', 'screen');
                 screenVideo.style.width = 'auto';
                 screenVideo.style.height = '100%';
                 screenVideo.style.maxWidth = '100%';
                 screenVideo.style.objectFit = 'contain';
                 screenContainer.appendChild(screenVideo);
 
-                // Add the screen container to the screen share container
+                // Add to screen share container
                 const screenShareContainer = document.getElementById('screen-share-container');
                 if (screenShareContainer) {
-                    // Get the peer's identity from the peer connection
-                    const peerConnection = wss.getPeerConnections()[peerId];
                     const peerIdentity = peerConnection?.identity || 'Anonymous';
-                    // Add screen share video with identity
+                    
+                    console.log('Adding screen share to container for peer:', peerId, peerIdentity);
+                    
                     screenShareContainer.style.display = 'flex';
                     screenShareContainer.innerHTML = '';
                     screenShareContainer.appendChild(screenContainer);
-                    // Add identity label for screen share
+                    
+                    // Add identity label
                     const identityLabel = document.createElement('div');
                     identityLabel.style.position = 'absolute';
                     identityLabel.style.top = '8px';
@@ -489,10 +525,11 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                     screenContainer.appendChild(receivingLabel);
                 }
             } else {
-                // Handle regular video stream
+                // Handle camera video stream
+                console.log('Creating camera video element for peer:', peerId);
                 const remoteVideo = createVideo(stream, false);
-                // Get the peer's identity from the peer connection
-                const peerConnection = wss.getPeerConnections()[peerId];
+                remoteVideo.setAttribute('data-peer', peerId);
+                remoteVideo.setAttribute('data-type', 'camera');
                 const peerIdentity = peerConnection?.identity || 'Anonymous';
                 addVideoStream(remoteVideo, stream, peerIdentity);
             }
@@ -503,65 +540,38 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
             stream,
             isScreenShare: isScreenStream,
             hasVideo: hasVideoTrack,
-            identity: wss.getPeerConnections()[peerId]?.identity || 'Anonymous'
+            identity: peerConnection?.identity || 'Anonymous'
         });
 
-        // Monitor remote stream tracks
+        // Monitor track status
         stream.getTracks().forEach(track => {
-            console.log(`Remote ${track.kind} track added for peer:`, peerId);
             track.onended = () => {
                 console.log(`Remote ${track.kind} track ended for peer:`, peerId);
                 if (isScreenStream) {
                     console.log(`Screen share track ended for peer: ${peerId}, cleaning up UI`);
                     
-                    // Remove the screen container
+                    // Remove screen container
                     const screenContainer = document.querySelector(`.screen-share-container[data-peer="${peerId}"]`);
                     if (screenContainer) {
                         screenContainer.remove();
                     }
                     
-                    // Hide the screen share container and update layout
+                    // Hide screen share container if empty
                     const screenShareContainer = document.getElementById('screen-share-container');
                     if (screenShareContainer) {
                         screenShareContainer.style.display = 'none';
                         screenShareContainer.innerHTML = '';
                     }
                     
-                    // Remove peer's screen share information
+                    // Update peer information
                     const peer = peers.get(peerId);
                     if (peer) {
                         peer.isScreenShare = false;
                         peers.set(peerId, peer);
                     }
                     
-                    // Update the grid layout
+                    // Update layout
                     updateGridLayout();
-                } else {
-                    // Handle regular video track ending
-                    console.log(`Video track ended for peer: ${peerId}, cleaning up UI`);
-                    
-                    // Find and remove the video element
-                    const videoGrid = document.getElementById('video-grid');
-                    if (videoGrid) {
-                        const videoWrappers = videoGrid.querySelectorAll('div');
-                        videoWrappers.forEach(wrapper => {
-                            const video = wrapper.querySelector('video');
-                            if (video && video.srcObject === stream) {
-                                console.log('Removing video element for peer:', peerId);
-                                wrapper.remove();
-                                
-                                // Update peer information
-                                const peer = peers.get(peerId);
-                                if (peer) {
-                                    peer.hasVideo = false;
-                                    peers.set(peerId, peer);
-                                }
-                                
-                                // Update the grid layout
-                                updateGridLayout();
-                            }
-                        });
-                    }
                 }
             };
         });
@@ -575,40 +585,7 @@ export const removeRemoteStream = (peerId) => {
     if (peer) {
         console.log('Removing remote stream for peer:', peerId);
         
-        // Find and remove all video elements associated with this peer
-        const videoGrid = document.getElementById('video-grid');
-        if (videoGrid) {
-            // Find all video wrappers that might contain this peer's video
-            const videoWrappers = videoGrid.querySelectorAll('div');
-            videoWrappers.forEach(wrapper => {
-                // Check if this wrapper contains a video element
-                const video = wrapper.querySelector('video');
-                if (video) {
-                    // Check if this video belongs to the peer being removed
-                    // by checking if the video's srcObject contains the peer's stream
-                    if (video.srcObject && video.srcObject === peer.stream) {
-                        console.log('Removing video element for peer:', peerId);
-                        wrapper.remove();
-                    }
-                }
-            });
-        }
-        
-        // Also check for screen share elements
-        const screenContainer = document.querySelector(`.screen-share-container[data-peer="${peerId}"]`);
-        if (screenContainer) {
-            console.log('Removing screen share container for peer:', peerId);
-            screenContainer.remove();
-            
-            // Hide the screen share container if it's empty
-            const screenShareContainer = document.getElementById('screen-share-container');
-            if (screenShareContainer && !screenShareContainer.hasChildNodes()) {
-                screenShareContainer.style.display = 'none';
-                screenShareContainer.innerHTML = '';
-            }
-        }
-        
-        // Stop all tracks in the stream
+        // Stop all tracks from the peer's stream
         if (peer.stream) {
             peer.stream.getTracks().forEach(track => {
                 track.stop();
@@ -616,10 +593,63 @@ export const removeRemoteStream = (peerId) => {
             });
         }
         
-        // Remove peer from the peers map
+        // Find and remove all video elements in the video grid
+        const videoGrid = document.getElementById('video-grid');
+        if (videoGrid) {
+            // Find all video wrappers for this peer
+            const videoWrappers = videoGrid.querySelectorAll('div');
+            videoWrappers.forEach(wrapper => {
+                const video = wrapper.querySelector('video');
+                if (video) {
+                    // Check if this video belongs to the peer being removed
+                    if (video.dataset.peer === peerId || 
+                        (video.srcObject && video.srcObject === peer.stream)) {
+                        console.log('Found and removing video element for peer:', peerId);
+                        // Stop all tracks in the video's stream
+                        if (video.srcObject) {
+                            video.srcObject.getTracks().forEach(track => {
+                                track.stop();
+                                console.log(`Stopped track in video element for peer:`, peerId);
+                            });
+                            video.srcObject = null;
+                        }
+                        wrapper.remove();
+                    }
+                }
+            });
+        }
+        
+        // Clean up screen share elements
+        const screenContainer = document.querySelector(`.screen-share-container[data-peer="${peerId}"]`);
+        if (screenContainer) {
+            console.log('Removing screen share container for peer:', peerId);
+            // Stop any media streams in the screen container
+            const screenVideo = screenContainer.querySelector('video');
+            if (screenVideo && screenVideo.srcObject) {
+                screenVideo.srcObject.getTracks().forEach(track => {
+                    track.stop();
+                    console.log(`Stopped screen share track for peer:`, peerId);
+                });
+                screenVideo.srcObject = null;
+            }
+            screenContainer.remove();
+            
+            // Hide the screen share container if it's empty
+            const screenShareContainer = document.getElementById('screen-share-container');
+            if (screenShareContainer) {
+                const remainingScreens = screenShareContainer.querySelectorAll('.screen-share-container');
+                if (remainingScreens.length === 0) {
+                    console.log('No remaining screen shares, hiding container');
+                    screenShareContainer.style.display = 'none';
+                    screenShareContainer.innerHTML = '';
+                }
+            }
+        }
+        
+        // Remove peer from peers map
         peers.delete(peerId);
         
-        // Update the grid layout
+        // Update grid layout
         updateGridLayout();
     }
 };
@@ -661,12 +691,11 @@ export const startScreenSharing = async () => {
         // Set content hint for screen sharing and ensure tracks are enabled
         screenStream.getVideoTracks().forEach(track => {
             track.contentHint = 'screen';
-            track.enabled = true; // Ensure track is enabled
+            track.enabled = true;
         });
 
         // Create video element for local preview
-        const screenVideo = createVideo(screenStream, true, true);  // Changed false to true for isLocal
-        // Get the local user's identity from the local stream's video element
+        const screenVideo = createVideo(screenStream, true, true);
         const localVideo = document.querySelector('video[data-local="true"]');
         const localIdentity = localVideo?.parentElement?.querySelector('div')?.textContent || 'Anonymous';
         addVideoStream(screenVideo, screenStream, `${localIdentity}'s Screen Share`);
@@ -688,13 +717,22 @@ export const startScreenSharing = async () => {
                 const sender = peerConnection.addTrack(screenTrack, screenOnlyStream);
                 
                 if (sender) {
-                    const params = sender.getParameters();
-                    if (!params.encodings) {
-                        params.encodings = [{}];
+                    try {
+                        const params = sender.getParameters();
+                        // Only set encoding parameters if supported
+                        if (params.encodings) {
+                            if (params.encodings.length === 0) {
+                                params.encodings.push({});
+                            }
+                            params.encodings[0].maxBitrate = 2500000;
+                            params.encodings[0].maxFramerate = 30;
+                            sender.setParameters(params).catch(err => {
+                                console.warn('Could not set sender parameters:', err);
+                            });
+                        }
+                    } catch (err) {
+                        console.warn('Error setting sender parameters:', err);
                     }
-                    params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps for screen sharing
-                    params.encodings[0].maxFramerate = 30;
-                    sender.setParameters(params).catch(console.error);
                 }
 
                 // Renegotiate connection after adding screen track
@@ -702,7 +740,11 @@ export const startScreenSharing = async () => {
                     offerToReceiveAudio: true,
                     offerToReceiveVideo: true
                 })
-                    .then(offer => peerConnection.setLocalDescription(offer))
+                    .then(offer => {
+                        // Mark this offer as a screen share
+                        peerConnection.isScreenShareOffer = true;
+                        return peerConnection.setLocalDescription(offer);
+                    })
                     .then(() => {
                         wss.socket.emit('offer', {
                             target: userId,
