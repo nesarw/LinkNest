@@ -106,11 +106,48 @@ io.on('connection', (socket) => {
     socket.on('join-room', (data) => {
         const room = rooms.find(room => room.roomID === data.roomId);
         if (room) {
+            // First check if this socket ID already exists in the room
+            const sameSocketUser = room.participants.find(participant => participant.socketID === socket.id);
+            if (sameSocketUser) {
+                // This is a rejoin with the same socket ID but different identity
+                const oldIdentity = sameSocketUser.identity;
+                sameSocketUser.identity = data.identity;
+                
+                // Notify all users in the room about the identity change
+                socket.to(data.roomId).emit('user-identity-changed', {
+                    userID: socket.id,
+                    oldIdentity: oldIdentity,
+                    newIdentity: data.identity
+                });
+                
+                console.log(`User ${socket.id} updated identity from ${oldIdentity} to ${data.identity} in room ${data.roomId}`);
+                io.to(data.roomId).emit('update-participants', room.participants);
+                return;
+            }
+
+            // Check for existing user with same identity
             const existingUser = room.participants.find(participant => participant.identity === data.identity);
-            if (existingUser) {
+            if (existingUser && existingUser.socketID !== socket.id) {
+                // Remove old socket ID from connected users
+                connectedUsers = connectedUsers.filter(user => user.socketID !== existingUser.socketID);
+                
+                // Store old socket ID and identity
+                const oldSocketID = existingUser.socketID;
+                
+                // Update the existing user's socket ID
                 existingUser.socketID = socket.id;
                 socket.join(data.roomId);
+                
+                // Add new connection to connected users
                 connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity: data.identity });
+                
+                // Notify all users in the room about the rejoin
+                socket.to(data.roomId).emit('user-rejoined', { 
+                    oldSocketID: oldSocketID,
+                    newSocketID: socket.id,
+                    identity: data.identity 
+                });
+                
                 console.log(`User ${socket.id} rejoined room ${data.roomId} with identity ${data.identity}`);
             } else if (room.participants.length < 4) {
                 socket.join(data.roomId);
@@ -124,7 +161,6 @@ io.on('connection', (socket) => {
                 // If there are existing participants, notify the new user with their identities
                 if (room.participants.length > 1) {
                     const existingParticipants = room.participants.filter(p => p.socketID !== socket.id);
-                    // Send each existing participant's identity to the new user
                     existingParticipants.forEach(participant => {
                         socket.emit('user-joined', { 
                             userID: participant.socketID, 
@@ -135,7 +171,6 @@ io.on('connection', (socket) => {
             } else {
                 socket.emit('error', { message: 'Room is full' });
             }
-            socket.emit('room-joined', { roomID: data.roomId });
 
             console.log('Connected Users:', connectedUsers);
             io.to(data.roomId).emit('update-participants', room.participants);

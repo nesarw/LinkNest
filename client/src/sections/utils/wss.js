@@ -500,46 +500,152 @@ export const connectwithSocketIOServer = () => {
 
     socket.on('user-disconnected', (userID) => {
         console.log('User disconnected event received for:', userID);
+        
+        // Clean up peer connection
         if (peerConnections[userID]) {
             console.log('Closing peer connection for:', userID);
             peerConnections[userID].close();
             delete peerConnections[userID];
             connectedPeers.delete(userID);
-            
-            // Ensure UI elements are removed
-            console.log('Removing remote stream for disconnected user:', userID);
-            removeRemoteStream(userID);
-            
-            // Double-check if any video elements still exist for this user
-            setTimeout(() => {
-                const videoGrid = document.getElementById('video-grid');
-                if (videoGrid) {
-                    const videoWrappers = videoGrid.querySelectorAll('div');
-                    let foundRemainingElements = false;
-                    
-                    videoWrappers.forEach(wrapper => {
-                        const video = wrapper.querySelector('video');
-                        if (video && video.srcObject) {
-                            // Check if this video belongs to the disconnected user
-                            const peer = Array.from(peers.entries()).find(([_, p]) => p.stream === video.srcObject);
-                            if (peer && peer[0] === userID) {
-                                console.log('Found remaining video element for disconnected user, removing:', userID);
-                                wrapper.remove();
-                                foundRemainingElements = true;
-                            }
-                        }
-                    });
-                    
-                    if (foundRemainingElements) {
-                        updateGridLayout();
-                    }
-                }
-            }, 500);
         }
+        
+        // Ensure UI elements are removed
+        console.log('Removing remote stream for disconnected user:', userID);
+        removeRemoteStream(userID);
+        
+        // Clean up any remaining video elements
+        const videoGrid = document.getElementById('video-grid');
+        if (videoGrid) {
+            const videoWrappers = videoGrid.querySelectorAll('div');
+            videoWrappers.forEach(wrapper => {
+                const video = wrapper.querySelector('video');
+                if (video && video.dataset.peer === userID) {
+                    console.log('Found remaining video element for disconnected user, removing:', userID);
+                    wrapper.remove();
+                }
+            });
+            updateGridLayout();
+        }
+        
+        // Clean up screen share elements if they exist
+        const screenContainer = document.querySelector(`.screen-share-container[data-peer="${userID}"]`);
+        if (screenContainer) {
+            console.log('Removing screen share container for disconnected user:', userID);
+            screenContainer.remove();
+        }
+        
+        // Update the grid layout after cleanup
+        updateGridLayout();
     });
 
     socket.on('existing-participants', (participants) => {
         isInitiator = true;
+    });
+
+    socket.on('user-identity-changed', (data) => {
+        console.log('User identity changed:', data);
+        const { userID, oldIdentity, newIdentity } = data;
+        
+        // Update identity in peer connection
+        if (peerConnections[userID]) {
+            peerConnections[userID].identity = newIdentity;
+        }
+        
+        // Update identity labels in video grid
+        const videoGrid = document.getElementById('video-grid');
+        if (videoGrid) {
+            const videoWrappers = videoGrid.querySelectorAll('div');
+            videoWrappers.forEach(wrapper => {
+                const video = wrapper.querySelector('video');
+                const identityLabel = wrapper.querySelector('.identity-label');
+                if (video && video.dataset.peer === userID && identityLabel) {
+                    identityLabel.textContent = newIdentity;
+                }
+            });
+        }
+        
+        // Update identity in screen share container if exists
+        const screenContainer = document.querySelector(`.screen-share-container[data-peer="${userID}"]`);
+        if (screenContainer) {
+            const identityLabel = screenContainer.querySelector('.identity-label');
+            if (identityLabel) {
+                identityLabel.textContent = newIdentity;
+            }
+        }
+    });
+
+    socket.on('user-rejoined', async (data) => {
+        console.log('User rejoined event received:', data);
+        const { oldSocketID, newSocketID, identity } = data;
+        
+        // Clean up old peer connection if it exists
+        if (peerConnections[oldSocketID]) {
+            console.log('Cleaning up old peer connection:', oldSocketID);
+            peerConnections[oldSocketID].close();
+            delete peerConnections[oldSocketID];
+            connectedPeers.delete(oldSocketID);
+        }
+        
+        // Remove any existing UI elements for the old socket ID
+        removeRemoteStream(oldSocketID);
+        
+        // Create new peer connection for the rejoined user
+        const peerConnection = new RTCPeerConnection(getIceServers());
+        peerConnections[newSocketID] = peerConnection;
+        
+        // Store the identity with the peer connection
+        peerConnection.identity = identity;
+        
+        // Add local stream tracks to the new peer connection
+        const localStream = getLocalStream();
+        if (localStream) {
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+        }
+        
+        // Add screen sharing tracks if active
+        const screenStream = getScreenStream();
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => {
+                track.contentHint = 'screen';
+                peerConnection.addTrack(track, screenStream);
+            });
+        }
+        
+        // Set up event handlers for the new peer connection
+        peerConnection.ontrack = (event) => {
+            console.log('Received remote track from rejoined user:', event.track.kind);
+            const [remoteStream] = event.streams;
+            if (remoteStream) {
+                const isScreenShare = event.track.contentHint === 'screen' || 
+                                    remoteStream.id.includes('screen') || 
+                                    event.track.label.includes('screen');
+                
+                handleRemoteStream(remoteStream, newSocketID, isScreenShare);
+            }
+        };
+        
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('ice-candidate', {
+                    target: newSocketID,
+                    candidate: event.candidate
+                });
+            }
+        };
+        
+        // Create and send a new offer to the rejoined user
+        try {
+            const offer = await peerConnection.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+            });
+            await peerConnection.setLocalDescription(offer);
+            socket.emit('offer', { target: newSocketID, offer });
+        } catch (err) {
+            console.error('Error creating offer for rejoined user:', err);
+        }
     });
 };
 
