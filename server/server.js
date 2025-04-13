@@ -153,6 +153,7 @@ io.on('connection', (socket) => {
         const user = connectedUsers.find(user => user.socketID === socket.id);
         if (user) {
             const roomID = user.roomID;
+            const userID = socket.id;
             connectedUsers = connectedUsers.filter(user => user.socketID !== socket.id);
             console.log('Remaining Connected Users:', connectedUsers);
             const room = rooms.find(room => room.roomID === roomID);
@@ -165,6 +166,16 @@ io.on('connection', (socket) => {
                     }
                 }
                 io.to(roomID).emit('update-participants', room.participants);
+                
+                // Explicitly notify all users in the room that this user has disconnected
+                console.log(`Notifying all users in room ${roomID} that user ${userID} has disconnected`);
+                socket.to(roomID).emit('user-disconnected', userID);
+                
+                // If this was the last user in the room, clean up the room
+                if (room.participants.length === 0) {
+                    console.log(`Room ${roomID} is empty, cleaning up`);
+                    rooms = rooms.filter(r => r.roomID !== roomID);
+                }
             }
         }
     });
@@ -174,6 +185,7 @@ io.on('connection', (socket) => {
         const user = connectedUsers.find(user => user.socketID === socket.id);
         if (user) {
             const roomID = user.roomID;
+            const userID = socket.id;
             connectedUsers = connectedUsers.filter(user => user.socketID !== socket.id);
             console.log('Remaining Connected Users:', connectedUsers);
             const room = rooms.find(room => room.roomID === roomID);
@@ -186,7 +198,16 @@ io.on('connection', (socket) => {
                     }
                 }
                 io.to(roomID).emit('update-participants', room.participants);
-                socket.to(roomID).emit('user-disconnected', socket.id);
+                
+                // Explicitly notify all users in the room that this user has disconnected
+                console.log(`Notifying all users in room ${roomID} that user ${userID} has disconnected`);
+                socket.to(roomID).emit('user-disconnected', userID);
+                
+                // If this was the last user in the room, clean up the room
+                if (room.participants.length === 0) {
+                    console.log(`Room ${roomID} is empty, cleaning up`);
+                    rooms = rooms.filter(r => r.roomID !== roomID);
+                }
             }
         }
     });

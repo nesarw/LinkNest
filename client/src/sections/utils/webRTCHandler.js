@@ -536,6 +536,32 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                     
                     // Update the grid layout
                     updateGridLayout();
+                } else {
+                    // Handle regular video track ending
+                    console.log(`Video track ended for peer: ${peerId}, cleaning up UI`);
+                    
+                    // Find and remove the video element
+                    const videoGrid = document.getElementById('video-grid');
+                    if (videoGrid) {
+                        const videoWrappers = videoGrid.querySelectorAll('div');
+                        videoWrappers.forEach(wrapper => {
+                            const video = wrapper.querySelector('video');
+                            if (video && video.srcObject === stream) {
+                                console.log('Removing video element for peer:', peerId);
+                                wrapper.remove();
+                                
+                                // Update peer information
+                                const peer = peers.get(peerId);
+                                if (peer) {
+                                    peer.hasVideo = false;
+                                    peers.set(peerId, peer);
+                                }
+                                
+                                // Update the grid layout
+                                updateGridLayout();
+                            }
+                        });
+                    }
                 }
             };
         });
@@ -548,13 +574,52 @@ export const removeRemoteStream = (peerId) => {
     const peer = peers.get(peerId);
     if (peer) {
         console.log('Removing remote stream for peer:', peerId);
-        if (peer.video && peer.video.parentNode) {
-            peer.video.parentNode.remove();
+        
+        // Find and remove all video elements associated with this peer
+        const videoGrid = document.getElementById('video-grid');
+        if (videoGrid) {
+            // Find all video wrappers that might contain this peer's video
+            const videoWrappers = videoGrid.querySelectorAll('div');
+            videoWrappers.forEach(wrapper => {
+                // Check if this wrapper contains a video element
+                const video = wrapper.querySelector('video');
+                if (video) {
+                    // Check if this video belongs to the peer being removed
+                    // by checking if the video's srcObject contains the peer's stream
+                    if (video.srcObject && video.srcObject === peer.stream) {
+                        console.log('Removing video element for peer:', peerId);
+                        wrapper.remove();
+                    }
+                }
+            });
         }
+        
+        // Also check for screen share elements
+        const screenContainer = document.querySelector(`.screen-share-container[data-peer="${peerId}"]`);
+        if (screenContainer) {
+            console.log('Removing screen share container for peer:', peerId);
+            screenContainer.remove();
+            
+            // Hide the screen share container if it's empty
+            const screenShareContainer = document.getElementById('screen-share-container');
+            if (screenShareContainer && !screenShareContainer.hasChildNodes()) {
+                screenShareContainer.style.display = 'none';
+                screenShareContainer.innerHTML = '';
+            }
+        }
+        
+        // Stop all tracks in the stream
         if (peer.stream) {
-            peer.stream.getTracks().forEach(track => track.stop());
+            peer.stream.getTracks().forEach(track => {
+                track.stop();
+                console.log(`Stopped ${track.kind} track for peer:`, peerId);
+            });
         }
+        
+        // Remove peer from the peers map
         peers.delete(peerId);
+        
+        // Update the grid layout
         updateGridLayout();
     }
 };

@@ -213,6 +213,32 @@ const createPeerConnection = (userID, identity) => {
                     
                     // Update the grid layout
                     updateGridLayout();
+                } else {
+                    // Handle regular video track ending
+                    console.log(`Video track ended for peer: ${userID}, cleaning up UI`);
+                    
+                    // Find and remove the video element
+                    const videoGrid = document.getElementById('video-grid');
+                    if (videoGrid) {
+                        const videoWrappers = videoGrid.querySelectorAll('div');
+                        videoWrappers.forEach(wrapper => {
+                            const video = wrapper.querySelector('video');
+                            if (video && video.srcObject === remoteStream) {
+                                console.log('Removing video element for peer:', userID);
+                                wrapper.remove();
+                                
+                                // Update peer information
+                                const peer = getPeerInfo(userID);
+                                if (peer) {
+                                    peer.hasVideo = false;
+                                    updatePeerInfo(userID, peer);
+                                }
+                                
+                                // Update the grid layout
+                                updateGridLayout();
+                            }
+                        });
+                    }
                 }
             };
             
@@ -251,16 +277,25 @@ const createPeerConnection = (userID, identity) => {
                 console.log('ICE Connection established successfully');
                 break;
             case 'failed':
-                console.log('ICE Connection failed, restarting...');
+                console.log('ICE Connection failed, cleaning up and restarting...');
+                // Clean up UI elements before restarting
+                removeRemoteStream(userID);
                 restartConnection(userID);
                 break;
             case 'disconnected':
-                console.log('ICE Connection disconnected, attempting to recover...');
+                console.log('ICE Connection disconnected, cleaning up and attempting to recover...');
+                // Clean up UI elements before attempting to recover
+                removeRemoteStream(userID);
                 setTimeout(() => {
                     if (peerConnection.iceConnectionState === 'disconnected') {
                         restartConnection(userID);
                     }
                 }, 2000);
+                break;
+            case 'closed':
+                console.log('ICE Connection closed, cleaning up...');
+                // Clean up UI elements when connection is closed
+                removeRemoteStream(userID);
                 break;
         }
     };
@@ -278,6 +313,10 @@ const restartConnection = async (userID) => {
         const peerConnection = peerConnections[userID];
         if (peerConnection) {
             console.log('Restarting connection for:', userID);
+            
+            // Clean up any existing UI elements before restarting
+            removeRemoteStream(userID);
+            
             const offer = await peerConnection.createOffer({ 
                 iceRestart: true,
                 offerToReceiveAudio: true,
@@ -285,9 +324,30 @@ const restartConnection = async (userID) => {
             });
             await peerConnection.setLocalDescription(offer);
             socket.emit('offer', { target: userID, offer });
+            
+            // Set a timeout to check if the connection was successfully restarted
+            setTimeout(() => {
+                if (peerConnection.iceConnectionState === 'disconnected' || 
+                    peerConnection.iceConnectionState === 'failed') {
+                    console.log('Connection restart failed for:', userID, 'cleaning up...');
+                    // If the connection is still disconnected or failed after the timeout,
+                    // clean up the peer connection
+                    peerConnection.close();
+                    delete peerConnections[userID];
+                    connectedPeers.delete(userID);
+                    removeRemoteStream(userID);
+                }
+            }, 10000); // 10 seconds timeout
         }
     } catch (err) {
         console.error('Error restarting connection:', err);
+        // If there's an error, clean up the peer connection
+        if (peerConnections[userID]) {
+            peerConnections[userID].close();
+            delete peerConnections[userID];
+            connectedPeers.delete(userID);
+            removeRemoteStream(userID);
+        }
     }
 };
 
@@ -439,11 +499,42 @@ export const connectwithSocketIOServer = () => {
     });
 
     socket.on('user-disconnected', (userID) => {
+        console.log('User disconnected event received for:', userID);
         if (peerConnections[userID]) {
+            console.log('Closing peer connection for:', userID);
             peerConnections[userID].close();
             delete peerConnections[userID];
             connectedPeers.delete(userID);
+            
+            // Ensure UI elements are removed
+            console.log('Removing remote stream for disconnected user:', userID);
             removeRemoteStream(userID);
+            
+            // Double-check if any video elements still exist for this user
+            setTimeout(() => {
+                const videoGrid = document.getElementById('video-grid');
+                if (videoGrid) {
+                    const videoWrappers = videoGrid.querySelectorAll('div');
+                    let foundRemainingElements = false;
+                    
+                    videoWrappers.forEach(wrapper => {
+                        const video = wrapper.querySelector('video');
+                        if (video && video.srcObject) {
+                            // Check if this video belongs to the disconnected user
+                            const peer = Array.from(peers.entries()).find(([_, p]) => p.stream === video.srcObject);
+                            if (peer && peer[0] === userID) {
+                                console.log('Found remaining video element for disconnected user, removing:', userID);
+                                wrapper.remove();
+                                foundRemainingElements = true;
+                            }
+                        }
+                    });
+                    
+                    if (foundRemainingElements) {
+                        updateGridLayout();
+                    }
+                }
+            }, 500);
         }
     });
 
@@ -480,12 +571,56 @@ export const disconnectFromRoom = () => {
 
 export const leaveRoom = () => {
     if (socket) {
-        socket.emit('leave-room');
+        console.log('Leaving room, cleaning up all connections and UI elements');
+        
+        // First, clean up all UI elements for all peers
+        Object.keys(peerConnections).forEach(userId => {
+            console.log('Cleaning up UI elements for peer:', userId);
+            removeRemoteStream(userId);
+        });
+        
+        // Then close all peer connections
         Object.values(peerConnections).forEach(connection => {
             connection.close();
         });
+        
+        // Clear all peer connections
         Object.keys(peerConnections).forEach(key => delete peerConnections[key]);
         connectedPeers.clear();
+        
+        // Emit leave-room event to the server
+        socket.emit('leave-room');
+        
+        // Double-check if any video elements still exist
+        setTimeout(() => {
+            const videoGrid = document.getElementById('video-grid');
+            if (videoGrid) {
+                console.log('Double-checking for remaining video elements');
+                const videoWrappers = videoGrid.querySelectorAll('div');
+                let foundRemainingElements = false;
+                
+                videoWrappers.forEach(wrapper => {
+                    const video = wrapper.querySelector('video');
+                    if (video && video.srcObject) {
+                        console.log('Found remaining video element, removing');
+                        wrapper.remove();
+                        foundRemainingElements = true;
+                    }
+                });
+                
+                if (foundRemainingElements) {
+                    updateGridLayout();
+                }
+            }
+            
+            // Also check for screen share elements
+            const screenShareContainer = document.getElementById('screen-share-container');
+            if (screenShareContainer) {
+                console.log('Cleaning up screen share container');
+                screenShareContainer.style.display = 'none';
+                screenShareContainer.innerHTML = '';
+            }
+        }, 500);
     }
 };
 
