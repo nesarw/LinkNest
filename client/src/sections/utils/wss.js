@@ -244,14 +244,26 @@ const createPeerConnection = (userID, identity) => {
             };
             
             // Add mute/unmute listeners for all tracks
-            event.track.onmute = () => {
-                console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
-            };
-            event.track.onunmute = () => {
-                console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
-                // Ensure track is enabled when unmuted
+            // For screen tracks, completely disable the event handlers
+            if (event.track.contentHint === 'screen' || event.track.isScreenTrack) {
+                // For screen tracks, completely disable the event handlers
+                event.track.onmute = null;
+                event.track.onunmute = null;
+                
+                // Ensure screen track is always enabled
                 event.track.enabled = true;
-            };
+                
+                console.log(`Screen track detected for peer: ${userID}, disabled mute/unmute handlers`);
+            } else {
+                // For non-screen tracks, use minimal event handlers
+                event.track.onmute = () => {
+                    console.log(`Remote ${event.track.kind} track muted for peer:`, userID);
+                };
+                
+                event.track.onunmute = () => {
+                    console.log(`Remote ${event.track.kind} track unmuted for peer:`, userID);
+                };
+            }
         }
     };
 

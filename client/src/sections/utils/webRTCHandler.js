@@ -455,6 +455,26 @@ export const handleRemoteStream = (stream, peerId, isScreenShare = false) => {
                 track.enabled = true;
                 if (track.kind === 'video') {
                     track.contentHint = 'screen';
+                    
+                    // Add a custom property to identify screen tracks
+                    track.isScreenTrack = true;
+                    
+                    // Completely disable mute/unmute handlers for screen tracks
+                    track.onmute = null;
+                    track.onunmute = null;
+                    
+                    console.log(`Screen track configured for peer: ${peerId}, disabled mute/unmute handlers`);
+                }
+            });
+        } else {
+            // For non-screen tracks, ensure they're properly configured
+            stream.getTracks().forEach(track => {
+                if (track.kind === 'video') {
+                    // Mark as non-screen track
+                    track.isScreenTrack = false;
+                    
+                    // Ensure track is enabled
+                    track.enabled = true;
                 }
             });
         }
@@ -692,6 +712,21 @@ export const startScreenSharing = async () => {
         screenStream.getVideoTracks().forEach(track => {
             track.contentHint = 'screen';
             track.enabled = true;
+            
+            // Add a custom property to identify screen tracks
+            track.isScreenTrack = true;
+            
+            // Completely disable mute/unmute handlers for screen tracks
+            track.onmute = null;
+            track.onunmute = null;
+            
+            console.log(`Local screen track configured, disabled mute/unmute handlers`);
+            
+            // Set a higher priority for screen tracks to prevent interference
+            if (track.getSettings) {
+                const settings = track.getSettings();
+                console.log('Screen track settings:', settings);
+            }
         });
 
         // Create video element for local preview
