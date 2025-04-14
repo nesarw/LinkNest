@@ -693,6 +693,27 @@ export const connectwithSocketIOServer = () => {
             console.error('Error creating offer for rejoined user:', err);
         }
     });
+
+    socket.on('host-action', (data) => {
+        const { action } = data;
+        if (action === 'disable-all-media') {
+            // Disable local media streams
+            const localStream = getLocalStream();
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    track.enabled = false;
+                });
+            }
+        } else if (action === 'enable-all-media') {
+            // Enable local media streams
+            const localStream = getLocalStream();
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    track.enabled = true;
+                });
+            }
+        }
+    });
 };
 
 export const createNewRoom = (identity) => {

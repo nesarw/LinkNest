@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Box, Divider, Stack, Typography, IconButton, Button } from "@mui/material";
-import { X, UserMinus } from "phosphor-react";
+import { X, UserMinus, VideoCameraSlash, VideoCamera } from "phosphor-react";
 import axios from "axios";
 import { useSelector } from "react-redux";
 import * as wss from "../utils/wss";
 
 const Participants = ({ onClose }) => {
     const [participants, setParticipants] = useState([]);
+    const [isAllMediaDisabled, setIsAllMediaDisabled] = useState(false);
     const isRoomHost = useSelector((state) => state.app.isRoomHost);
 
     useEffect(() => {
@@ -27,6 +28,20 @@ const Participants = ({ onClose }) => {
     const handleKickUser = (socketID) => {
         if (isRoomHost) {
             wss.socket.emit("kick-user", { targetUserID: socketID });
+        }
+    };
+
+    const handleDisableAllMedia = () => {
+        if (isRoomHost) {
+            wss.socket.emit("host-action", { action: "disable-all-media" });
+            setIsAllMediaDisabled(true);
+        }
+    };
+
+    const handleEnableAllMedia = () => {
+        if (isRoomHost) {
+            wss.socket.emit("host-action", { action: "enable-all-media" });
+            setIsAllMediaDisabled(false);
         }
     };
 
@@ -62,6 +77,28 @@ const Participants = ({ onClose }) => {
                         <X color="black" />
                     </IconButton>
                 </Box>
+                {isRoomHost && (
+                    <Box sx={{ display: 'flex', gap: 1, p: 1 }}>
+                        <Button
+                            variant="contained"
+                            color={isAllMediaDisabled ? "primary" : "error"}
+                            size="small"
+                            startIcon={isAllMediaDisabled ? <VideoCamera size={16} /> : <VideoCameraSlash size={16} />}
+                            onClick={isAllMediaDisabled ? handleEnableAllMedia : handleDisableAllMedia}
+                            sx={{ 
+                                minWidth: 'auto',
+                                px: 1,
+                                py: 0.5,
+                                backgroundColor: isAllMediaDisabled ? 'rgba(0, 0, 255, 0.7)' : 'rgba(255, 0, 0, 0.7)',
+                                '&:hover': {
+                                    backgroundColor: isAllMediaDisabled ? 'rgba(0, 0, 255, 0.9)' : 'rgba(255, 0, 0, 0.9)',
+                                }
+                            }}
+                        >
+                            {isAllMediaDisabled ? "Enable All Media" : "Disable All Media"}
+                        </Button>
+                    </Box>
+                )}
                 <Stack>
                     {participants.map(({ socketID, identity }) => (
                         <Stack key={socketID} spacing={1} sx={{

@@ -279,6 +279,12 @@ io.on('connection', (socket) => {
             }
         }
     });
+
+    socket.on('host-action', (data) => {
+        const { action } = data;
+        // Broadcast the action to all non-host users
+        socket.broadcast.emit('host-action', { action });
+    });
 });
 
 //chat server ---------------------------------------------------------------------- 

@@ -7,6 +7,7 @@ import Chats from "./chat";
 import { useNavigate } from "react-router-dom";
 import * as wss from "../utils/wss";
 import * as webRTCHandler from "../utils/webRTCHandler";
+import { useSelector } from "react-redux";
 
 const Video = () => {
   const navigate = useNavigate();
@@ -16,6 +17,14 @@ const Video = () => {
   const [isParticipantsVisible, setIsParticipantsVisible] = useState(false);
   const [isLabelVisible, setIsLabelVisible] = useState(false);
   const [isChatsVisible, setIsChatsVisible] = useState(false);
+  const [isMediaDisabledByHost, setIsMediaDisabledByHost] = useState(false);
+  const isRoomHost = useSelector((state) => state.app.isRoomHost);
+  const roomId = useSelector((state) => state.app.roomId);
+
+  // Reset media disabled state when room changes
+  useEffect(() => {
+    setIsMediaDisabledByHost(false);
+  }, [roomId]);
 
   useEffect(() => {
     const handleRoomClosed = () => {
@@ -24,12 +33,42 @@ const Video = () => {
 
     wss.socket.on('room-closed', handleRoomClosed);
 
+    // Add listener for host media control actions
+    wss.socket.on('host-action', (data) => {
+      const { action } = data;
+      if (action === 'disable-all-media') {
+        setIsMediaDisabledByHost(true);
+        // Disable local media streams
+        const localStream = webRTCHandler.getLocalStream();
+        if (localStream && !isRoomHost) {
+          localStream.getTracks().forEach(track => {
+            track.enabled = false;
+          });
+        }
+      } else if (action === 'enable-all-media') {
+        setIsMediaDisabledByHost(false);
+        // Enable local media streams
+        const localStream = webRTCHandler.getLocalStream();
+        if (localStream && !isRoomHost) {
+          localStream.getTracks().forEach(track => {
+            track.enabled = true;
+          });
+        }
+      }
+    });
+
     return () => {
       wss.socket.off('room-closed', handleRoomClosed);
+      wss.socket.off('host-action');
     };
-  }, [navigate]);
+  }, [navigate, isRoomHost]);
 
   const handleMicrophoneToggle = async () => {
+    // If media is disabled by host and user is not host, do nothing
+    if (isMediaDisabledByHost && !isRoomHost) {
+      return;
+    }
+
     const localStream = webRTCHandler.getLocalStream();
     if (localStream) {
       if (isMicrophoneOn) {
@@ -97,6 +136,11 @@ const Video = () => {
   }, []);
 
   const handleCameraToggle = async () => {
+    // If media is disabled by host and user is not host, do nothing
+    if (isMediaDisabledByHost && !isRoomHost) {
+      return;
+    }
+
     const localStream = webRTCHandler.getLocalStream();
     if (localStream) {
       if (isCameraOn) {
@@ -258,27 +302,35 @@ const Video = () => {
         <Stack direction='row' spacing={1} alignItems='center' justifyContent='center'>
           <IconButton 
             sx={{ 
-              backgroundColor: 'white', 
+              backgroundColor: isMediaDisabledByHost && !isRoomHost ? 'rgba(128, 128, 128, 0.5)' : 'white', 
               borderRadius: '50%', 
               width: { xs: 36, sm: 48 },
               height: { xs: 36, sm: 48 },
-              '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } 
+              '&:hover': { 
+                backgroundColor: isMediaDisabledByHost && !isRoomHost ? 'rgba(128, 128, 128, 0.5)' : 'rgba(198, 198, 198, 0.86)',
+                cursor: isMediaDisabledByHost && !isRoomHost ? 'not-allowed' : 'pointer'
+              } 
             }}
             onClick={handleMicrophoneToggle}
+            disabled={isMediaDisabledByHost && !isRoomHost}
           >
-            {isMicrophoneOn ? <Microphone color="black" /> : <MicrophoneSlash color="black" />}
+            {isMicrophoneOn ? <Microphone color={isMediaDisabledByHost && !isRoomHost ? "gray" : "black"} /> : <MicrophoneSlash color={isMediaDisabledByHost && !isRoomHost ? "gray" : "black"} />}
           </IconButton>
           <IconButton 
             sx={{ 
-              backgroundColor: 'white', 
+              backgroundColor: isMediaDisabledByHost && !isRoomHost ? 'rgba(128, 128, 128, 0.5)' : 'white', 
               borderRadius: '50%', 
               width: { xs: 36, sm: 48 },
               height: { xs: 36, sm: 48 },
-              '&:hover': { backgroundColor: 'rgba(198, 198, 198, 0.86)' } 
+              '&:hover': { 
+                backgroundColor: isMediaDisabledByHost && !isRoomHost ? 'rgba(128, 128, 128, 0.5)' : 'rgba(198, 198, 198, 0.86)',
+                cursor: isMediaDisabledByHost && !isRoomHost ? 'not-allowed' : 'pointer'
+              } 
             }}
             onClick={handleCameraToggle}
+            disabled={isMediaDisabledByHost && !isRoomHost}
           >
-            {isCameraOn ? <VideoCamera color="black" /> : <VideoCameraSlash color="black" />}
+            {isCameraOn ? <VideoCamera color={isMediaDisabledByHost && !isRoomHost ? "gray" : "black"} /> : <VideoCameraSlash color={isMediaDisabledByHost && !isRoomHost ? "gray" : "black"} />}
           </IconButton>
           <IconButton 
             onClick={handleScreenToggle}
