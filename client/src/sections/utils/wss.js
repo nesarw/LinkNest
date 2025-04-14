@@ -566,6 +566,24 @@ export const connectwithSocketIOServer = () => {
         });
     });
 
+    // Handle kicked-from-room event
+    socket.on('kicked-from-room', (data) => {
+        console.log('Kicked from room:', data);
+        
+        // Show notification
+        alert(data.message);
+        
+        // Clean up all connections
+        Object.values(peerConnections).forEach(connection => {
+            connection.close();
+        });
+        Object.keys(peerConnections).forEach(key => delete peerConnections[key]);
+        connectedPeers.clear();
+        
+        // Redirect to homepage
+        window.location.href = '/';
+    });
+
     socket.on('existing-participants', (participants) => {
         isInitiator = true;
     });

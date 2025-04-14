@@ -246,6 +246,39 @@ io.on('connection', (socket) => {
             }
         }
     });
+
+    // Handle kick-user event
+    socket.on('kick-user', (data) => {
+        const { targetUserID } = data;
+        console.log(`User ${socket.id} is kicking user ${targetUserID}`);
+        
+        // Find the room where the kicker is the host
+        const room = rooms.find(room => room.host === socket.id);
+        
+        if (room) {
+            // Find the target user in the room
+            const targetUser = room.participants.find(participant => participant.socketID === targetUserID);
+            
+            if (targetUser) {
+                // Remove the user from the room
+                room.participants = room.participants.filter(participant => participant.socketID !== targetUserID);
+                
+                // Remove the user from connected users
+                connectedUsers = connectedUsers.filter(user => user.socketID !== targetUserID);
+                
+                // Notify all users in the room about the update
+                io.to(room.roomID).emit('update-participants', room.participants);
+                
+                // Notify all users that the target user has been disconnected
+                io.to(room.roomID).emit('user-disconnected', targetUserID);
+                
+                // Notify the target user that they were kicked
+                io.to(targetUserID).emit('kicked-from-room', { message: 'You were removed by the host' });
+                
+                console.log(`User ${targetUserID} was kicked from room ${room.roomID}`);
+            }
+        }
+    });
 });
 
 //chat server ---------------------------------------------------------------------- 

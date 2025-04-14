@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Box, Divider, Stack, Typography, IconButton } from "@mui/material";
-import { X } from "phosphor-react";
+import { Box, Divider, Stack, Typography, IconButton, Button } from "@mui/material";
+import { X, UserMinus } from "phosphor-react";
 import axios from "axios";
+import { useSelector } from "react-redux";
+import * as wss from "../utils/wss";
 
 const Participants = ({ onClose }) => {
     const [participants, setParticipants] = useState([]);
+    const isRoomHost = useSelector((state) => state.app.isRoomHost);
 
     useEffect(() => {
         const fetchParticipants = async () => {
@@ -20,6 +23,12 @@ const Participants = ({ onClose }) => {
 
         return () => clearInterval(intervalId);
     }, []);
+
+    const handleKickUser = (socketID) => {
+        if (isRoomHost) {
+            wss.socket.emit("kick-user", { targetUserID: socketID });
+        }
+    };
 
     return (
         <Box sx={{
@@ -62,6 +71,9 @@ const Participants = ({ onClose }) => {
                                 px: 2,
                                 py: 2,
                                 borderRadius: 1,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
                                 '&:hover': {
                                     backgroundColor: 'black',
                                     color: 'white',
@@ -70,6 +82,26 @@ const Participants = ({ onClose }) => {
                                 <Typography>
                                     {identity}
                                 </Typography>
+                                {isRoomHost && socketID !== wss.socket.id && (
+                                    <Button
+                                        variant="contained"
+                                        color="error"
+                                        size="small"
+                                        startIcon={<UserMinus size={16} />}
+                                        onClick={() => handleKickUser(socketID)}
+                                        sx={{ 
+                                            minWidth: 'auto',
+                                            px: 1,
+                                            py: 0.5,
+                                            backgroundColor: 'rgba(255, 0, 0, 0.7)',
+                                            '&:hover': {
+                                                backgroundColor: 'rgba(255, 0, 0, 0.9)',
+                                            }
+                                        }}
+                                    >
+                                        Kick
+                                    </Button>
+                                )}
                             </Box>
                             <Divider />
                         </Stack>
