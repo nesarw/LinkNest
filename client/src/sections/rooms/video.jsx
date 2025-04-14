@@ -228,6 +228,8 @@ const Video = () => {
     } catch (err) {
       console.error('Error toggling screen share:', err);
       setIsScreenOn(false);
+      // Show error message to user
+      alert(err.message || 'Failed to start screen sharing');
     }
   };
 

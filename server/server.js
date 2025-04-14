@@ -18,6 +18,8 @@ app.use(express.json());
 let connectedUsers = [];
 let rooms = [];
 let previousRoomIDs = new Set();
+let isScreenSharingActive = false;
+let currentScreenSharer = null;
 
 // Function to generate a 9-character alphanumeric room ID
 const generateRoomID = () => {
@@ -82,7 +84,30 @@ io.on('connection', (socket) => {
         io.to(roomID).emit('update-participants', rooms.find(room => room.roomID === roomID).participants);
     });
 
+    // Handle screen sharing request
+    socket.on('request-screen-share', (data) => {
+        if (isScreenSharingActive && currentScreenSharer !== socket.id) {
+            // Someone else is already sharing their screen
+            socket.emit('screen-share-error', { 
+                message: 'Screen sharing is already active by another user.' 
+            });
+        } else {
+            // Allow screen sharing
+            isScreenSharingActive = true;
+            currentScreenSharer = socket.id;
+            socket.emit('screen-share-approved');
+        }
+    });
 
+    // Handle screen sharing stop
+    socket.on('stop-screen-share', () => {
+        if (currentScreenSharer === socket.id) {
+            isScreenSharingActive = false;
+            currentScreenSharer = null;
+            // Notify all users that screen sharing is now available
+            io.emit('screen-share-available');
+        }
+    });
 
     // Handle WebRTC signaling
     socket.on('offer', (data) => {
@@ -217,6 +242,12 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log(`User disconnected ${socket.id}`);
+        // If the disconnected user was sharing their screen, reset the state
+        if (currentScreenSharer === socket.id) {
+            isScreenSharingActive = false;
+            currentScreenSharer = null;
+            io.emit('screen-share-available');
+        }
         const user = connectedUsers.find(user => user.socketID === socket.id);
         if (user) {
             const roomID = user.roomID;

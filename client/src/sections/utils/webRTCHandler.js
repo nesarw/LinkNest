@@ -699,6 +699,35 @@ export const startScreenSharing = async () => {
             await stopScreenSharing();
         }
 
+        // Request permission from server to start screen sharing
+        return new Promise((resolve, reject) => {
+            wss.socket.emit('request-screen-share');
+            
+            // Set up event listeners for the response
+            const handleApproved = () => {
+                wss.socket.off('screen-share-approved', handleApproved);
+                wss.socket.off('screen-share-error', handleError);
+                proceedWithScreenSharing().then(resolve).catch(reject);
+            };
+            
+            const handleError = (data) => {
+                wss.socket.off('screen-share-approved', handleApproved);
+                wss.socket.off('screen-share-error', handleError);
+                reject(new Error(data.message));
+            };
+            
+            wss.socket.on('screen-share-approved', handleApproved);
+            wss.socket.on('screen-share-error', handleError);
+        });
+    } catch (err) {
+        console.error('Error starting screen share:', err);
+        return false;
+    }
+};
+
+// Helper function to proceed with screen sharing after server approval
+const proceedWithScreenSharing = async () => {
+    try {
         screenStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
                 cursor: 'always',
@@ -795,7 +824,7 @@ export const startScreenSharing = async () => {
 
         return true;
     } catch (err) {
-        console.error('Error starting screen share:', err);
+        console.error('Error proceeding with screen share:', err);
         return false;
     }
 };
@@ -803,6 +832,9 @@ export const startScreenSharing = async () => {
 export const stopScreenSharing = async () => {
     if (screenStream) {
         console.log('Stopping screen sharing...');
+        
+        // Notify server that screen sharing has stopped
+        wss.socket.emit('stop-screen-share');
         
         // Stop all tracks
         screenStream.getTracks().forEach(track => {
