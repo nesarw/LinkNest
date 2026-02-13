@@ -5,6 +5,8 @@ const path = require('path');
 const twilio = require('twilio');
 const db = require("./firebase");
 const admin = require("firebase-admin");
+const crypto = require('crypto');
+require('dotenv').config();
 
 const PORT = process.env.PORT ||  8000;
 
@@ -12,16 +14,61 @@ const app = express();
 const server = http.createServer(app);
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+// Configure CORS with specific origin instead of wildcard
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',') 
+    : ['http://localhost:3000', 'http://localhost:5173'];
+
+app.use(cors({
+    origin: function(origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true
+}));
+
+// Add security headers
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
+
+// Limit JSON payload size to prevent DoS
+app.use(express.json({ limit: '10kb' }));
 
 let connectedUsers = [];
 let rooms = [];
 let previousRoomIDs = new Set();
 
-// Function to generate a 9-character alphanumeric room ID
+// Input validation helpers
+const sanitizeString = (str, maxLength = 100) => {
+    if (typeof str !== 'string') return '';
+    // Remove potential XSS characters and limit length
+    return str.replace(/[<>'"]/g, '').substring(0, maxLength).trim();
+};
+
+const isValidRoomID = (roomID) => {
+    if (typeof roomID !== 'string') return false;
+    // Room IDs should be alphanumeric and 9 characters
+    return /^[A-Z0-9]{9}$/i.test(roomID);
+};
+
+// Function to generate a cryptographically secure 9-character alphanumeric room ID
 const generateRoomID = () => {
-    return Math.random().toString(36).substring(2, 11).toUpperCase();
+    // Use crypto.randomBytes for cryptographically secure random generation
+    const buffer = crypto.randomBytes(6);
+    return buffer.toString('base64')
+        .replace(/[+/=]/g, '') // Remove base64 special chars
+        .substring(0, 9)
+        .toUpperCase();
 };
 
 const generateUniqueRoomID = () => {
@@ -38,6 +85,12 @@ const generateUniqueRoomID = () => {
 // API Routes
 app.get('/api/rooms-exists/:roomID', (req, res) => {
     const roomID = req.params.roomID;
+    
+    // Validate room ID format
+    if (!isValidRoomID(roomID)) {
+        return res.status(400).json({ error: 'Invalid room ID format' });
+    }
+    
     const room = rooms.find(room => room.roomID === roomID);
     if (room) {
         if (room.participants.length > 3) {
@@ -63,8 +116,16 @@ app.get('/api/participants', (req, res) => {
 // Socket.IO setup
 const io = require('socket.io')(server, {
     cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
+        origin: function(origin, callback) {
+            // Allow requests with no origin (like mobile apps or curl requests)
+            if (!origin) return callback(null, true);
+            if (allowedOrigins.indexOf(origin) === -1) {
+                return callback(new Error('CORS policy violation'), false);
+            }
+            return callback(null, true);
+        },
+        methods: ['GET', 'POST'],
+        credentials: true
     }
 });
 
@@ -72,11 +133,23 @@ io.on('connection', (socket) => {
     console.log(`A user connected ${socket.id}`);
 
     socket.on('create-new-room', (data) => {
+        // Validate and sanitize identity
+        if (!data || !data.identity) {
+            socket.emit('error', { message: 'Identity is required' });
+            return;
+        }
+        
+        const identity = sanitizeString(data.identity, 50);
+        if (identity.length === 0) {
+            socket.emit('error', { message: 'Invalid identity' });
+            return;
+        }
+        
         const roomID = generateUniqueRoomID();
         socket.join(roomID);
         console.log(`Room created with ID: ${roomID}`);
-        rooms.push({ roomID, participants: [{ socketID: socket.id, identity: data.identity }], host: socket.id });
-        connectedUsers.push({ socketID: socket.id, roomID, identity: data.identity });
+        rooms.push({ roomID, participants: [{ socketID: socket.id, identity }], host: socket.id });
+        connectedUsers.push({ socketID: socket.id, roomID, identity });
         console.log('Connected Users:', connectedUsers);
         socket.emit('room-created', { roomID });
         io.to(roomID).emit('update-participants', rooms.find(room => room.roomID === roomID).participants);
@@ -104,6 +177,25 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join-room', (data) => {
+        // Validate input
+        if (!data || !data.roomId || !data.identity) {
+            socket.emit('error', { message: 'Room ID and identity are required' });
+            return;
+        }
+        
+        // Validate room ID format
+        if (!isValidRoomID(data.roomId)) {
+            socket.emit('error', { message: 'Invalid room ID format' });
+            return;
+        }
+        
+        // Sanitize identity
+        const identity = sanitizeString(data.identity, 50);
+        if (identity.length === 0) {
+            socket.emit('error', { message: 'Invalid identity' });
+            return;
+        }
+        
         const room = rooms.find(room => room.roomID === data.roomId);
         if (room) {
             // First check if this socket ID already exists in the room
@@ -111,22 +203,22 @@ io.on('connection', (socket) => {
             if (sameSocketUser) {
                 // This is a rejoin with the same socket ID but different identity
                 const oldIdentity = sameSocketUser.identity;
-                sameSocketUser.identity = data.identity;
+                sameSocketUser.identity = identity;
                 
                 // Notify all users in the room about the identity change
                 socket.to(data.roomId).emit('user-identity-changed', {
                     userID: socket.id,
                     oldIdentity: oldIdentity,
-                    newIdentity: data.identity
+                    newIdentity: identity
                 });
                 
-                console.log(`User ${socket.id} updated identity from ${oldIdentity} to ${data.identity} in room ${data.roomId}`);
+                console.log(`User ${socket.id} updated identity from ${oldIdentity} to ${identity} in room ${data.roomId}`);
                 io.to(data.roomId).emit('update-participants', room.participants);
                 return;
             }
 
             // Check for existing user with same identity
-            const existingUser = room.participants.find(participant => participant.identity === data.identity);
+            const existingUser = room.participants.find(participant => participant.identity === identity);
             if (existingUser && existingUser.socketID !== socket.id) {
                 // Remove old socket ID from connected users
                 connectedUsers = connectedUsers.filter(user => user.socketID !== existingUser.socketID);
@@ -139,24 +231,24 @@ io.on('connection', (socket) => {
                 socket.join(data.roomId);
                 
                 // Add new connection to connected users
-                connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity: data.identity });
+                connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity });
                 
                 // Notify all users in the room about the rejoin
                 socket.to(data.roomId).emit('user-rejoined', { 
                     oldSocketID: oldSocketID,
                     newSocketID: socket.id,
-                    identity: data.identity 
+                    identity
                 });
                 
-                console.log(`User ${socket.id} rejoined room ${data.roomId} with identity ${data.identity}`);
+                console.log(`User ${socket.id} rejoined room ${data.roomId} with identity ${identity}`);
             } else if (room.participants.length < 4) {
                 socket.join(data.roomId);
-                room.participants.push({ socketID: socket.id, identity: data.identity });
-                connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity: data.identity });
-                console.log(`User ${socket.id} joined room ${data.roomId} with identity ${data.identity}`);
+                room.participants.push({ socketID: socket.id, identity });
+                connectedUsers.push({ socketID: socket.id, roomID: data.roomId, identity });
+                console.log(`User ${socket.id} joined room ${data.roomId} with identity ${identity}`);
                 
                 // Notify existing participants about the new user
-                socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity: data.identity });
+                socket.to(data.roomId).emit('user-joined', { userID: socket.id, identity });
                 
                 // If there are existing participants, notify the new user with their identities
                 if (room.participants.length > 1) {
@@ -179,9 +271,19 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on("join-chat-room", ({ roomId }) => {
-        console.log(`User ${socket.id} joining chat room ${roomId}`);
-        socket.join(roomId);
+    socket.on("join-chat-room", (data) => {
+        // Validate input
+        if (!data || !data.roomId) {
+            return;
+        }
+        
+        // Validate room ID format
+        if (!isValidRoomID(data.roomId)) {
+            return;
+        }
+        
+        console.log(`User ${socket.id} joining chat room ${data.roomId}`);
+        socket.join(data.roomId);
     });
 
     socket.on('leave-room', () => {
@@ -254,11 +356,28 @@ app.post("/api/rooms/:roomId", async (req, res) => {
     const { roomId } = req.params;
     const { username, message } = req.body;
 
+    // Validate room ID
+    if (!isValidRoomID(roomId)) {
+        return res.status(400).json({ error: "Invalid room ID format" });
+    }
+
+    // Validate and sanitize inputs
+    if (!username || !message) {
+        return res.status(400).json({ error: "Username and message are required" });
+    }
+
+    const sanitizedUsername = sanitizeString(username, 50);
+    const sanitizedMessage = sanitizeString(message, 500);
+
+    if (sanitizedUsername.length === 0 || sanitizedMessage.length === 0) {
+        return res.status(400).json({ error: "Invalid username or message" });
+    }
+
     try {
         const messageRef = db.collection("rooms").doc(roomId).collection("messages").doc();
         await messageRef.set({
-            sender: username,
-            text: message,
+            sender: sanitizedUsername,
+            text: sanitizedMessage,
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -266,8 +385,8 @@ app.post("/api/rooms/:roomId", async (req, res) => {
         const messageData = savedMessage.data();
 
         io.to(roomId).emit("new-message", {
-            username,
-            message,
+            username: sanitizedUsername,
+            message: sanitizedMessage,
             timestamp: messageData.timestamp ? messageData.timestamp.toDate().toISOString() : null,
         });
 
@@ -275,13 +394,19 @@ app.post("/api/rooms/:roomId", async (req, res) => {
 
         res.json({ success: true, message: "Message sent!" });
     } catch (error) {
-        res.status(500).json({ error: "Error sending message", details: error.message });
+        console.error('Error sending message:', error);
+        res.status(500).json({ error: "Error sending message" });
     }
 });
 
 // API Route for Chat Messages (Fetch Messages)
 app.get("/api/rooms/:roomId", async (req, res) => {
     const { roomId } = req.params;
+
+    // Validate room ID
+    if (!isValidRoomID(roomId)) {
+        return res.status(400).json({ error: "Invalid room ID format" });
+    }
 
     try {
         const messagesRef = db.collection("rooms").doc(roomId).collection("messages").orderBy("timestamp", "asc");
@@ -300,7 +425,8 @@ app.get("/api/rooms/:roomId", async (req, res) => {
 
         res.json({ success: true, messages });
     } catch (error) {
-        res.status(500).json({ error: "Error fetching messages", details: error.message });
+        console.error('Error fetching messages:', error);
+        res.status(500).json({ error: "Error fetching messages" });
     }
 });
 //-----------------------------------------------------------------------------
